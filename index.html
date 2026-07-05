@@ -751,31 +751,19 @@
           </div>
           <div class="form-row c2">
             <div class="field"><label>1H Trend</label>
-              <div class="multiselect" id="f_htf1h" data-single="true">
-                <div class="chip" data-val="Bullish" data-tone="pos">Bullish</div>
-                <div class="chip" data-val="Bearish" data-tone="neg">Bearish</div>
-              </div>
+              <select id="f_htf1h"><option value="">— Niet ingevuld —</option><option>Bullish</option><option>Bearish</option></select>
             </div>
             <div class="field"><label>4H Trend</label>
-              <div class="multiselect" id="f_htf4h" data-single="true">
-                <div class="chip" data-val="Bullish" data-tone="pos">Bullish</div>
-                <div class="chip" data-val="Bearish" data-tone="neg">Bearish</div>
-              </div>
+              <select id="f_htf4h"><option value="">— Niet ingevuld —</option><option>Bullish</option><option>Bearish</option></select>
             </div>
           </div>
         </div>
 
         <div class="form-section">
           <div class="sec-label"><span style="color:var(--text-ghost);">04</span> Execution Quality</div>
-          <div class="field" style="margin-bottom:14px;">
+          <div class="field" style="margin-bottom:14px; max-width:240px;">
             <label>Setup Grade</label>
-            <div class="multiselect" id="f_setupgrade" data-single="true">
-              <div class="chip" data-val="A+" data-tone="pos">A+</div>
-              <div class="chip" data-val="A" data-tone="pos">A</div>
-              <div class="chip" data-val="B">B</div>
-              <div class="chip" data-val="C">C</div>
-              <div class="chip" data-val="FOMO" data-tone="neg">FOMO</div>
-            </div>
+            <select id="f_setupgrade"><option value="">— Niet ingevuld —</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>FOMO</option></select>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <div class="checkfield tone-good"><input type="checkbox" id="f_followedplan"><label for="f_followedplan">Followed Plan</label></div>
@@ -796,15 +784,9 @@
 
         <div class="form-section">
           <div class="sec-label"><span style="color:var(--text-ghost);">06</span> Psychology</div>
-          <div class="field" style="margin-bottom:14px;">
+          <div class="field" style="margin-bottom:14px; max-width:240px;">
             <label>Emotion</label>
-            <div class="multiselect" id="f_emotion" data-single="true">
-              <div class="chip" data-val="Calm" data-tone="pos">Calm</div>
-              <div class="chip" data-val="Hesitant" data-tone="be">Hesitant</div>
-              <div class="chip" data-val="Fear" data-tone="be">Fear</div>
-              <div class="chip" data-val="Greed" data-tone="neg">Greed</div>
-              <div class="chip" data-val="Revenge" data-tone="neg">Revenge</div>
-            </div>
+            <select id="f_emotion"><option value="">— Niet ingevuld —</option><option>Calm</option><option>Hesitant</option><option>Fear</option><option>Greed</option><option>Revenge</option></select>
           </div>
           <div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Wat zag je, wat deed je, wat zou je anders doen?"></textarea></div>
         </div>
@@ -1319,9 +1301,9 @@ $('#tradeForm').addEventListener('submit', async e=>{
     manualBE: manualBEVal,
     riskPct: riskPctVal,
     setupType: getSelectedChips('f_setuptype'),
-    htf1h: getSelectedChips('f_htf1h')[0] || '',
-    htf4h: getSelectedChips('f_htf4h')[0] || '',
-    setupGrade: getSelectedChips('f_setupgrade')[0] || '',
+    htf1h: $('#f_htf1h').value,
+    htf4h: $('#f_htf4h').value,
+    setupGrade: $('#f_setupgrade').value,
     followedPlan: $('#f_followedplan').checked,
     earlyExit: $('#f_earlyexit').checked,
     lateEntry: $('#f_lateentry').checked,
@@ -1329,7 +1311,7 @@ $('#tradeForm').addEventListener('submit', async e=>{
     overtrade: $('#f_overtrade').checked,
     entryTime: $('#f_entrytime').value,
     exitTime: $('#f_exittime').value,
-    emotion: getSelectedChips('f_emotion')[0] || '',
+    emotion: $('#f_emotion').value,
     notes: $('#f_notes').value,
     entryScreenshot: document.getElementById('entryDrop').dataset.image || null,
     exitScreenshot: document.getElementById('exitDrop').dataset.image || null,
@@ -1390,9 +1372,9 @@ function editTrade(id){
   $('#f_manualbe').checked = !!t.manualBE;
   updateRPreview();
   setSelectedChips('f_setuptype', t.setupType||[]);
-  setSelectedChips('f_htf1h', t.htf1h ? [t.htf1h] : [], true);
-  setSelectedChips('f_htf4h', t.htf4h ? [t.htf4h] : [], true);
-  setSelectedChips('f_setupgrade', t.setupGrade ? [t.setupGrade] : [], true);
+  $('#f_htf1h').value = t.htf1h || '';
+  $('#f_htf4h').value = t.htf4h || '';
+  $('#f_setupgrade').value = t.setupGrade;
   $('#f_followedplan').checked = !!t.followedPlan;
   $('#f_earlyexit').checked = !!t.earlyExit;
   $('#f_lateentry').checked = !!t.lateEntry;
@@ -1400,7 +1382,7 @@ function editTrade(id){
   $('#f_overtrade').checked = !!t.overtrade;
   $('#f_entrytime').value = t.entryTime||'';
   $('#f_exittime').value = t.exitTime||'';
-  setSelectedChips('f_emotion', t.emotion ? [t.emotion] : [], true);
+  $('#f_emotion').value = t.emotion;
   $('#f_notes').value = t.notes||'';
   // Screenshots aren't part of the bulk load (performance), so fetch this one
   // trade's screenshots on demand and fill them in once they arrive.
