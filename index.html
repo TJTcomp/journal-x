@@ -222,6 +222,39 @@
   select:hover, input:hover{border-color:#343B47;}
   select:focus, input:focus, textarea:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow);}
 
+  /* ---------- CUSTOM DROPDOWN ----------
+     Native <select> can't be styled once opened (iOS renders its own wheel
+     picker that ignores all CSS). This is a from-scratch dropdown so the
+     open list matches the app's look everywhere. */
+  .dd{position:relative;}
+  .dd-trigger{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--surface-1); border:1px solid var(--border); color:var(--text);
+    padding:10px 12px; border-radius:var(--radius-sm); font-size:13px; font-family:'Inter',sans-serif;
+    cursor:pointer; transition:border-color .15s, box-shadow .15s; text-align:left;
+  }
+  .dd-trigger:hover{border-color:#3A4250;}
+  .dd.open .dd-trigger{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow);}
+  .dd-label{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .dd-label.placeholder{color:var(--text-faint);}
+  .dd-chevron{width:15px; height:15px; flex-shrink:0; color:var(--text-faint); transition:transform .18s var(--ease); }
+  .dd.open .dd-chevron{transform:rotate(180deg); color:var(--accent);}
+  .dd-menu{
+    position:fixed; z-index:300; background:var(--surface-1); border:1px solid var(--border);
+    border-radius:var(--radius-sm); box-shadow:var(--shadow-lift); padding:5px;
+    max-height:260px; overflow-y:auto;
+    opacity:0; transform:translateY(-6px) scale(0.98); pointer-events:none;
+    transition:opacity .14s var(--ease), transform .14s var(--ease);
+  }
+  .dd.open .dd-menu{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+  .dd-option{
+    padding:9px 11px; border-radius:7px; font-size:13px; color:var(--text-dim); cursor:pointer;
+    display:flex; align-items:center; justify-content:space-between; gap:8px; transition:background .1s;
+  }
+  .dd-option:hover, .dd-option.active{background:var(--surface-2); color:var(--text);}
+  .dd-option.selected{color:var(--accent-bright); font-weight:600; background:var(--accent-glow);}
+  .dd-option.selected::after{content:'✓'; font-size:11px; flex-shrink:0;}
+
   /* ---------- FORM ---------- */
   .form-section{margin-bottom:26px; padding-bottom:24px; border-bottom:1px solid var(--hairline);}
   .form-section:last-child{border-bottom:none; margin-bottom:0; padding-bottom:0;}
@@ -672,7 +705,17 @@
           <div class="form-row c3">
             <div class="field"><label>Date</label><input type="date" id="f_date" required></div>
             <div class="field"><label>Direction</label>
-              <select id="f_direction" required><option value="">— Kies —</option><option>Long</option><option>Short</option></select>
+              <div class="dd" id="f_direction" data-value="">
+                <button type="button" class="dd-trigger">
+                  <span class="dd-label placeholder">— Kies —</span>
+                  <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="dd-menu">
+                  <div class="dd-option selected" data-val="">— Kies —</div>
+                  <div class="dd-option" data-val="Long">Long</div>
+                  <div class="dd-option" data-val="Short">Short</div>
+                </div>
+              </div>
             </div>
             <div class="field"><label>Risk %</label><input type="number" step="0.01" id="f_riskpct" placeholder="bv. 0.5"></div>
           </div>
@@ -751,10 +794,30 @@
           </div>
           <div class="form-row c2">
             <div class="field"><label>1H Trend</label>
-              <select id="f_htf1h"><option value="">— Niet ingevuld —</option><option>Bullish</option><option>Bearish</option></select>
+              <div class="dd" id="f_htf1h" data-value="">
+                <button type="button" class="dd-trigger">
+                  <span class="dd-label placeholder">— Niet ingevuld —</span>
+                  <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="dd-menu">
+                  <div class="dd-option selected" data-val="">— Niet ingevuld —</div>
+                  <div class="dd-option" data-val="Bullish">Bullish</div>
+                  <div class="dd-option" data-val="Bearish">Bearish</div>
+                </div>
+              </div>
             </div>
             <div class="field"><label>4H Trend</label>
-              <select id="f_htf4h"><option value="">— Niet ingevuld —</option><option>Bullish</option><option>Bearish</option></select>
+              <div class="dd" id="f_htf4h" data-value="">
+                <button type="button" class="dd-trigger">
+                  <span class="dd-label placeholder">— Niet ingevuld —</span>
+                  <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="dd-menu">
+                  <div class="dd-option selected" data-val="">— Niet ingevuld —</div>
+                  <div class="dd-option" data-val="Bullish">Bullish</div>
+                  <div class="dd-option" data-val="Bearish">Bearish</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -763,7 +826,20 @@
           <div class="sec-label"><span style="color:var(--text-ghost);">04</span> Execution Quality</div>
           <div class="field" style="margin-bottom:14px; max-width:240px;">
             <label>Setup Grade</label>
-            <select id="f_setupgrade"><option value="">— Niet ingevuld —</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>FOMO</option></select>
+            <div class="dd" id="f_setupgrade" data-value="">
+              <button type="button" class="dd-trigger">
+                <span class="dd-label placeholder">— Niet ingevuld —</span>
+                <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="dd-menu">
+                <div class="dd-option selected" data-val="">— Niet ingevuld —</div>
+                <div class="dd-option" data-val="A+">A+</div>
+                <div class="dd-option" data-val="A">A</div>
+                <div class="dd-option" data-val="B">B</div>
+                <div class="dd-option" data-val="C">C</div>
+                <div class="dd-option" data-val="FOMO">FOMO</div>
+              </div>
+            </div>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <div class="checkfield tone-good"><input type="checkbox" id="f_followedplan"><label for="f_followedplan">Followed Plan</label></div>
@@ -786,7 +862,20 @@
           <div class="sec-label"><span style="color:var(--text-ghost);">06</span> Psychology</div>
           <div class="field" style="margin-bottom:14px; max-width:240px;">
             <label>Emotion</label>
-            <select id="f_emotion"><option value="">— Niet ingevuld —</option><option>Calm</option><option>Hesitant</option><option>Fear</option><option>Greed</option><option>Revenge</option></select>
+            <div class="dd" id="f_emotion" data-value="">
+              <button type="button" class="dd-trigger">
+                <span class="dd-label placeholder">— Niet ingevuld —</span>
+                <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="dd-menu">
+                <div class="dd-option selected" data-val="">— Niet ingevuld —</div>
+                <div class="dd-option" data-val="Calm">Calm</div>
+                <div class="dd-option" data-val="Hesitant">Hesitant</div>
+                <div class="dd-option" data-val="Fear">Fear</div>
+                <div class="dd-option" data-val="Greed">Greed</div>
+                <div class="dd-option" data-val="Revenge">Revenge</div>
+              </div>
+            </div>
           </div>
           <div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Wat zag je, wat deed je, wat zou je anders doen?"></textarea></div>
         </div>
@@ -1208,6 +1297,81 @@ function updateRPreview(){
   $(sel).addEventListener('change', updateRPreview);
 });
 
+/* ---------- CUSTOM DROPDOWN ---------- */
+function positionDropdownMenu(dd){
+  const trigger = dd.querySelector('.dd-trigger');
+  const menu = dd.querySelector('.dd-menu');
+  const r = trigger.getBoundingClientRect();
+  menu.style.left = r.left + 'px';
+  menu.style.width = r.width + 'px';
+  menu.style.top = (r.bottom + 6) + 'px';
+  menu.style.bottom = 'auto';
+  // Flip above the trigger if there isn't room below (e.g. near the bottom
+  // of the screen / above the mobile bottom nav bar).
+  const estHeight = Math.min(260, menu.scrollHeight || 200);
+  if(r.bottom + estHeight + 12 > window.innerHeight){
+    menu.style.top = 'auto';
+    menu.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+  }
+}
+function closeAllDropdowns(){
+  document.querySelectorAll('.dd.open').forEach(o=>o.classList.remove('open'));
+}
+function initDropdowns(){
+  document.querySelectorAll('.dd').forEach(dd=>{
+    if(dd.dataset.ddInit) return; // avoid double-binding if called more than once
+    dd.dataset.ddInit = '1';
+    const trigger = dd.querySelector('.dd-trigger');
+    const menu = dd.querySelector('.dd-menu');
+    trigger.addEventListener('click', e=>{
+      e.stopPropagation();
+      const willOpen = !dd.classList.contains('open');
+      closeAllDropdowns();
+      if(willOpen){
+        dd.classList.add('open');
+        positionDropdownMenu(dd);
+      }
+    });
+    menu.querySelectorAll('.dd-option').forEach(opt=>{
+      opt.addEventListener('click', e=>{
+        e.stopPropagation();
+        selectDropdownOption(dd, opt);
+        dd.classList.remove('open');
+      });
+    });
+  });
+}
+function selectDropdownOption(dd, opt){
+  const trigger = dd.querySelector('.dd-trigger');
+  const menu = dd.querySelector('.dd-menu');
+  const val = opt.dataset.val;
+  dd.dataset.value = val;
+  menu.querySelectorAll('.dd-option').forEach(o=>o.classList.toggle('selected', o===opt));
+  const label = trigger.querySelector('.dd-label');
+  label.textContent = opt.textContent.trim();
+  label.classList.toggle('placeholder', val==='');
+}
+function ddValue(id){
+  const dd = document.getElementById(id);
+  return dd ? (dd.dataset.value || '') : '';
+}
+function ddSetValue(id, val){
+  const dd = document.getElementById(id);
+  if(!dd) return;
+  const menu = dd.querySelector('.dd-menu');
+  const opt = [...menu.querySelectorAll('.dd-option')].find(o=>o.dataset.val === (val||'')) || menu.querySelector('.dd-option[data-val=""]');
+  if(opt) selectDropdownOption(dd, opt);
+}
+document.addEventListener('click', closeAllDropdowns);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeAllDropdowns(); });
+function repositionOpenDropdown(){
+  const open = document.querySelector('.dd.open');
+  if(open) positionDropdownMenu(open);
+}
+window.addEventListener('scroll', repositionOpenDropdown, true);
+window.addEventListener('resize', repositionOpenDropdown);
+initDropdowns();
+
 /* ---------- MULTISELECT CHIPS ---------- */
 document.querySelectorAll('.multiselect').forEach(group=>{
   group.addEventListener('click', e=>{
@@ -1280,6 +1444,10 @@ setupUpload('exitDrop','f_exitshot','exitHint','exitPreview');
 $('#tradeForm').addEventListener('submit', async e=>{
   e.preventDefault();
   const submitBtn = e.target.querySelector('button[type=submit]');
+  if(!ddValue('f_direction')){
+    showToast('Kies eerst Long of Short bij Direction');
+    return;
+  }
   // Only treat this as an update if editingId actually points to a trade that still exists.
   // This prevents a stale/invalid editingId from silently creating a duplicate instead of updating.
   const isEditing = !!editingId && trades.some(t=>t.id===editingId);
@@ -1294,16 +1462,16 @@ $('#tradeForm').addEventListener('submit', async e=>{
     id,
     date: $('#f_date').value,
     symbol: getSelectedChips('f_symbol'),
-    direction: $('#f_direction').value,
+    direction: ddValue('f_direction'),
     actualPct: actualPctVal,
     rMultiple: derived,
     outcome: derivedOutcome,
     manualBE: manualBEVal,
     riskPct: riskPctVal,
     setupType: getSelectedChips('f_setuptype'),
-    htf1h: $('#f_htf1h').value,
-    htf4h: $('#f_htf4h').value,
-    setupGrade: $('#f_setupgrade').value,
+    htf1h: ddValue('f_htf1h'),
+    htf4h: ddValue('f_htf4h'),
+    setupGrade: ddValue('f_setupgrade'),
     followedPlan: $('#f_followedplan').checked,
     earlyExit: $('#f_earlyexit').checked,
     lateEntry: $('#f_lateentry').checked,
@@ -1311,7 +1479,7 @@ $('#tradeForm').addEventListener('submit', async e=>{
     overtrade: $('#f_overtrade').checked,
     entryTime: $('#f_entrytime').value,
     exitTime: $('#f_exittime').value,
-    emotion: $('#f_emotion').value,
+    emotion: ddValue('f_emotion'),
     notes: $('#f_notes').value,
     entryScreenshot: document.getElementById('entryDrop').dataset.image || null,
     exitScreenshot: document.getElementById('exitDrop').dataset.image || null,
@@ -1346,6 +1514,7 @@ function resetForm(){
   editingId = null;
   $('#tradeForm').reset();
   document.querySelectorAll('.chip.selected').forEach(c=>c.classList.remove('selected'));
+  ['f_direction','f_htf1h','f_htf4h','f_setupgrade','f_emotion'].forEach(id=>ddSetValue(id, ''));
   document.querySelectorAll('.filegroup img').forEach(img=>{img.style.display='none'; img.src='';});
   document.getElementById('entryDrop').dataset.image='';
   document.getElementById('exitDrop').dataset.image='';
@@ -1365,16 +1534,16 @@ function editTrade(id){
   editingId = id;
   switchView('new');
   $('#f_date').value = t.date;
-  $('#f_direction').value = t.direction;
+  ddSetValue('f_direction', t.direction);
   $('#f_riskpct').value = t.riskPct ?? '';
   setSelectedChips('f_symbol', t.symbol||[], true);
   $('#f_actualpct').value = (t.actualPct===null || t.actualPct===undefined) ? '' : t.actualPct;
   $('#f_manualbe').checked = !!t.manualBE;
   updateRPreview();
   setSelectedChips('f_setuptype', t.setupType||[]);
-  $('#f_htf1h').value = t.htf1h || '';
-  $('#f_htf4h').value = t.htf4h || '';
-  $('#f_setupgrade').value = t.setupGrade;
+  ddSetValue('f_htf1h', t.htf1h || '');
+  ddSetValue('f_htf4h', t.htf4h || '');
+  ddSetValue('f_setupgrade', t.setupGrade || '');
   $('#f_followedplan').checked = !!t.followedPlan;
   $('#f_earlyexit').checked = !!t.earlyExit;
   $('#f_lateentry').checked = !!t.lateEntry;
@@ -1382,7 +1551,7 @@ function editTrade(id){
   $('#f_overtrade').checked = !!t.overtrade;
   $('#f_entrytime').value = t.entryTime||'';
   $('#f_exittime').value = t.exitTime||'';
-  $('#f_emotion').value = t.emotion;
+  ddSetValue('f_emotion', t.emotion || '');
   $('#f_notes').value = t.notes||'';
   // Screenshots aren't part of the bulk load (performance), so fetch this one
   // trade's screenshots on demand and fill them in once they arrive.
