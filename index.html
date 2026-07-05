@@ -249,10 +249,28 @@
   }
   .chip:hover{border-color:#3A4250; color:var(--text); background:var(--surface-2);}
   .chip.selected{background:var(--accent-glow); border-color:var(--accent); color:var(--accent-bright);}
-  .checkfield{display:flex; align-items:center; gap:9px; padding:10px 13px; background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; transition:border-color .14s, background .14s;}
+  /* Semantic tones for single-select chip groups (Setup Grade, Trend, Emotion) —
+     lets the option's meaning show through the color, not just a generic accent. */
+  .chip.selected[data-tone="pos"]{background:var(--pos-glow); border-color:var(--pos-dim); color:var(--pos);}
+  .chip.selected[data-tone="neg"]{background:var(--neg-glow); border-color:var(--neg-dim); color:var(--neg);}
+  .chip.selected[data-tone="be"]{background:var(--be-glow); border-color:var(--be-dim); color:var(--be);}
+  /* Discipline toggles: same visual language as .chip, but backed by a real
+     checkbox (via :has()) so no JS changes are needed anywhere else. */
+  .checkfield{
+    position:relative; display:inline-flex; align-items:center; gap:7px; padding:7px 14px;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:8px;
+    cursor:pointer; font-size:12px; font-weight:500; user-select:none;
+    transition:all .14s var(--ease);
+  }
   .checkfield:hover{border-color:#3A4250; background:var(--surface-2);}
-  .checkfield input{width:15px; height:15px; accent-color:var(--accent);}
-  .checkfield label{font-size:12.5px; color:var(--text); cursor:pointer; margin:0;}
+  .checkfield input{position:absolute; opacity:0; width:0; height:0; pointer-events:none;}
+  .checkfield label{font-size:12px; font-weight:500; color:var(--text-dim); cursor:pointer; margin:0;}
+  .checkfield:has(input:checked){background:var(--accent-glow); border-color:var(--accent);}
+  .checkfield:has(input:checked) label{color:var(--accent-bright);}
+  .checkfield.tone-good:has(input:checked){background:var(--pos-glow); border-color:var(--pos-dim);}
+  .checkfield.tone-good:has(input:checked) label{color:var(--pos);}
+  .checkfield.tone-bad:has(input:checked){background:var(--neg-glow); border-color:var(--neg-dim);}
+  .checkfield.tone-bad:has(input:checked) label{color:var(--neg);}
   .filegroup{border:1.5px dashed var(--border); border-radius:var(--radius); padding:16px; text-align:center; cursor:pointer; background:var(--surface-1); transition:border-color .15s, background .15s;}
   .filegroup:hover{border-color:var(--accent-dim); background:var(--surface-2);}
   .filegroup img{max-width:100%; max-height:130px; border-radius:8px; margin-top:10px;}
@@ -733,29 +751,38 @@
           </div>
           <div class="form-row c2">
             <div class="field"><label>1H Trend</label>
-              <select id="f_htf1h"><option value="">— Niet ingevuld —</option><option>Bullish</option><option>Bearish</option></select>
+              <div class="multiselect" id="f_htf1h" data-single="true">
+                <div class="chip" data-val="Bullish" data-tone="pos">Bullish</div>
+                <div class="chip" data-val="Bearish" data-tone="neg">Bearish</div>
+              </div>
             </div>
             <div class="field"><label>4H Trend</label>
-              <select id="f_htf4h"><option value="">— Niet ingevuld —</option><option>Bullish</option><option>Bearish</option></select>
+              <div class="multiselect" id="f_htf4h" data-single="true">
+                <div class="chip" data-val="Bullish" data-tone="pos">Bullish</div>
+                <div class="chip" data-val="Bearish" data-tone="neg">Bearish</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="form-section">
           <div class="sec-label"><span style="color:var(--text-ghost);">04</span> Execution Quality</div>
-          <div class="form-row">
-            <div class="field"><label>Setup Grade</label>
-              <select id="f_setupgrade"><option value="">— Niet ingevuld —</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>FOMO</option></select>
+          <div class="field" style="margin-bottom:14px;">
+            <label>Setup Grade</label>
+            <div class="multiselect" id="f_setupgrade" data-single="true">
+              <div class="chip" data-val="A+" data-tone="pos">A+</div>
+              <div class="chip" data-val="A" data-tone="pos">A</div>
+              <div class="chip" data-val="B">B</div>
+              <div class="chip" data-val="C">C</div>
+              <div class="chip" data-val="FOMO" data-tone="neg">FOMO</div>
             </div>
           </div>
-          <div class="form-row">
-            <div class="checkfield"><input type="checkbox" id="f_followedplan"><label for="f_followedplan">Followed Plan</label></div>
-            <div class="checkfield"><input type="checkbox" id="f_earlyexit"><label for="f_earlyexit">Early Exit</label></div>
-            <div class="checkfield"><input type="checkbox" id="f_lateentry"><label for="f_lateentry">Late Entry</label></div>
-            <div class="checkfield"><input type="checkbox" id="f_revengetrade"><label for="f_revengetrade">Revenge Trade</label></div>
-          </div>
-          <div class="form-row c3">
-            <div class="checkfield"><input type="checkbox" id="f_overtrade"><label for="f_overtrade">Overtrade</label></div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div class="checkfield tone-good"><input type="checkbox" id="f_followedplan"><label for="f_followedplan">Followed Plan</label></div>
+            <div class="checkfield tone-bad"><input type="checkbox" id="f_earlyexit"><label for="f_earlyexit">Early Exit</label></div>
+            <div class="checkfield tone-bad"><input type="checkbox" id="f_lateentry"><label for="f_lateentry">Late Entry</label></div>
+            <div class="checkfield tone-bad"><input type="checkbox" id="f_revengetrade"><label for="f_revengetrade">Revenge Trade</label></div>
+            <div class="checkfield tone-bad"><input type="checkbox" id="f_overtrade"><label for="f_overtrade">Overtrade</label></div>
           </div>
         </div>
 
@@ -769,9 +796,14 @@
 
         <div class="form-section">
           <div class="sec-label"><span style="color:var(--text-ghost);">06</span> Psychology</div>
-          <div class="form-row c2">
-            <div class="field"><label>Emotion</label>
-              <select id="f_emotion"><option value="">— Niet ingevuld —</option><option>Calm</option><option>Hesitant</option><option>Fear</option><option>Greed</option><option>Revenge</option></select>
+          <div class="field" style="margin-bottom:14px;">
+            <label>Emotion</label>
+            <div class="multiselect" id="f_emotion" data-single="true">
+              <div class="chip" data-val="Calm" data-tone="pos">Calm</div>
+              <div class="chip" data-val="Hesitant" data-tone="be">Hesitant</div>
+              <div class="chip" data-val="Fear" data-tone="be">Fear</div>
+              <div class="chip" data-val="Greed" data-tone="neg">Greed</div>
+              <div class="chip" data-val="Revenge" data-tone="neg">Revenge</div>
             </div>
           </div>
           <div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Wat zag je, wat deed je, wat zou je anders doen?"></textarea></div>
@@ -1199,7 +1231,16 @@ document.querySelectorAll('.multiselect').forEach(group=>{
   group.addEventListener('click', e=>{
     const chip = e.target.closest('.chip');
     if(!chip) return;
-    chip.classList.toggle('selected');
+    if(group.dataset.single === 'true'){
+      // Single-select groups (Setup Grade, Trend, Emotion): picking a chip
+      // clears any other selection; clicking the already-selected chip again
+      // clears it back to "not filled in", same as the old empty dropdown option.
+      const wasSelected = chip.classList.contains('selected');
+      [...group.children].forEach(c=>c.classList.remove('selected'));
+      if(!wasSelected) chip.classList.add('selected');
+    } else {
+      chip.classList.toggle('selected');
+    }
     if(group.id==='f_symbol') updateRiskCalc();
   });
 });
@@ -1278,9 +1319,9 @@ $('#tradeForm').addEventListener('submit', async e=>{
     manualBE: manualBEVal,
     riskPct: riskPctVal,
     setupType: getSelectedChips('f_setuptype'),
-    htf1h: $('#f_htf1h').value,
-    htf4h: $('#f_htf4h').value,
-    setupGrade: $('#f_setupgrade').value,
+    htf1h: getSelectedChips('f_htf1h')[0] || '',
+    htf4h: getSelectedChips('f_htf4h')[0] || '',
+    setupGrade: getSelectedChips('f_setupgrade')[0] || '',
     followedPlan: $('#f_followedplan').checked,
     earlyExit: $('#f_earlyexit').checked,
     lateEntry: $('#f_lateentry').checked,
@@ -1288,7 +1329,7 @@ $('#tradeForm').addEventListener('submit', async e=>{
     overtrade: $('#f_overtrade').checked,
     entryTime: $('#f_entrytime').value,
     exitTime: $('#f_exittime').value,
-    emotion: $('#f_emotion').value,
+    emotion: getSelectedChips('f_emotion')[0] || '',
     notes: $('#f_notes').value,
     entryScreenshot: document.getElementById('entryDrop').dataset.image || null,
     exitScreenshot: document.getElementById('exitDrop').dataset.image || null,
@@ -1349,9 +1390,9 @@ function editTrade(id){
   $('#f_manualbe').checked = !!t.manualBE;
   updateRPreview();
   setSelectedChips('f_setuptype', t.setupType||[]);
-  $('#f_htf1h').value = t.htf1h || '';
-  $('#f_htf4h').value = t.htf4h || '';
-  $('#f_setupgrade').value = t.setupGrade;
+  setSelectedChips('f_htf1h', t.htf1h ? [t.htf1h] : [], true);
+  setSelectedChips('f_htf4h', t.htf4h ? [t.htf4h] : [], true);
+  setSelectedChips('f_setupgrade', t.setupGrade ? [t.setupGrade] : [], true);
   $('#f_followedplan').checked = !!t.followedPlan;
   $('#f_earlyexit').checked = !!t.earlyExit;
   $('#f_lateentry').checked = !!t.lateEntry;
@@ -1359,7 +1400,7 @@ function editTrade(id){
   $('#f_overtrade').checked = !!t.overtrade;
   $('#f_entrytime').value = t.entryTime||'';
   $('#f_exittime').value = t.exitTime||'';
-  $('#f_emotion').value = t.emotion;
+  setSelectedChips('f_emotion', t.emotion ? [t.emotion] : [], true);
   $('#f_notes').value = t.notes||'';
   // Screenshots aren't part of the bulk load (performance), so fetch this one
   // trade's screenshots on demand and fill them in once they arrive.
