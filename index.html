@@ -463,6 +463,14 @@
   .acct-card-count span{ font-size:9px; color:var(--text-faint); font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
   .acct-card-status{ font-size:12px; color:var(--text-dim); }
 
+  /* Breakeven threshold setting */
+  .be-setting{ margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline); }
+  .be-setting-head{ font-size:11px; font-weight:600; color:var(--text); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:4px; }
+  .be-setting-desc{ font-size:11.5px; color:var(--text-faint); margin-bottom:10px; line-height:1.5; }
+  .be-setting-row{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .be-setting-row label{ font-size:12px; color:var(--text-dim); min-width:110px; margin:0; }
+  .be-eq{ font-size:12px; color:var(--be); font-family:'JetBrains Mono',monospace; }
+
   /* Journal modal facts grid */
   #jFacts{ display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-bottom:20px; }
   .fact{ background:var(--surface-1); padding:9px 12px; display:flex; flex-direction:column; gap:2px; }
@@ -789,11 +797,31 @@ let charts = {};
 /* ============================================================
    STATS ENGINE (computes from real broker net_pnl)
    ============================================================ */
-const BE_EPSILON = 0.005;
+/* ---------- BREAKEVEN THRESHOLD ----------
+   A +$2 scratch on a 5K account is not a win — it's breakeven. The threshold is
+   a % of that account's balance (default 0.20%), so it scales as the account
+   grows, with an optional fixed-dollar override per account. Trades whose net
+   P&L falls inside ±threshold are classified BE and excluded from win rate. */
+const DEFAULT_BE_PCT = 0.20;
+const FALLBACK_BE_USD = 0.005; // used only if we have no balance for the account
+function beThresholdFor(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return FALLBACK_BE_USD;
+  // A fixed dollar override wins if the user set one.
+  if(acc.be_threshold_usd !== null && acc.be_threshold_usd !== undefined && !isNaN(acc.be_threshold_usd)){
+    return Math.abs(Number(acc.be_threshold_usd));
+  }
+  const bal = Number(acc.balance);
+  if(!bal || isNaN(bal)) return FALLBACK_BE_USD;
+  const pct = (acc.be_threshold_pct===null||acc.be_threshold_pct===undefined||isNaN(acc.be_threshold_pct))
+    ? DEFAULT_BE_PCT : Number(acc.be_threshold_pct);
+  return Math.abs(bal * pct / 100);
+}
 function outcomeOf(t){
   const p = t.netPnl;
-  if(p > BE_EPSILON) return 'Win';
-  if(p < -BE_EPSILON) return 'Loss';
+  const thr = beThresholdFor(t.accountId);
+  if(p > thr) return 'Win';
+  if(p < -thr) return 'Loss';
   return 'BE';
 }
 function isNum(v){ return v !== null && v !== undefined && !isNaN(v); }
@@ -817,19 +845,27 @@ function hasR(t){ const r = rMultipleOf(t); return r !== null && !isNaN(r); }
 
 function computeStats(list){
   const n = list.length;
+  // Gross figures count EVERY positive/negative dollar, including BE scratches,
+  // so that grossProfit - grossLoss === netPnl and the books always balance.
   let grossProfit=0, grossLoss=0, netPnl=0, totalCommission=0, totalSwap=0, grossPnlSum=0;
+  // Win/Loss/BE classification (and therefore win rate, avg winner/loser and
+  // profit factor) uses the breakeven threshold: a scratch is not a win.
   let wins=0, losses=0, be=0, winSum=0, lossSum=0;
+  let decidedProfit=0, decidedLoss=0;
   list.forEach(t=>{
     const p = t.netPnl; netPnl += p;
     totalCommission += t.commission||0; totalSwap += t.swap||0; grossPnlSum += t.grossPnl||0;
+    if(p > 0) grossProfit += p; else if(p < 0) grossLoss += Math.abs(p);
     const o = outcomeOf(t);
-    if(o==='Win'){ wins++; winSum+=p; grossProfit+=p; }
-    else if(o==='Loss'){ losses++; lossSum+=p; grossLoss+=Math.abs(p); }
+    if(o==='Win'){ wins++; winSum+=p; decidedProfit+=p; }
+    else if(o==='Loss'){ losses++; lossSum+=p; decidedLoss+=Math.abs(p); }
     else be++;
   });
   const decided = wins+losses;
   const winRate = decided ? (wins/decided*100) : 0;
-  const profitFactor = grossLoss>0 ? (grossProfit/grossLoss) : (grossProfit>0?Infinity:0);
+  // Profit factor from decided trades only — BE scratches would otherwise
+  // inflate it while telling you nothing about your edge.
+  const profitFactor = decidedLoss>0 ? (decidedProfit/decidedLoss) : (decidedProfit>0?Infinity:0);
   return {
     n, netPnl, grossProfit, grossLoss, grossPnlSum, totalCommission, totalSwap,
     wins, losses, be, decidedCount:decided, winRate, profitFactor,
@@ -1125,7 +1161,7 @@ function renderDashboard(){
   const pf = isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞';
   $('#kpiGrid').innerHTML =
     kpi('Net PnL', fmtMoneySigned(s.netPnl), s.netPnl>=0?'pos':'neg') +
-    kpi('Win Rate', s.decidedCount?s.winRate.toFixed(1)+'%':'—', s.winRate>=50?'pos':'neg', `${s.wins}W / ${s.losses}L${s.be?` / ${s.be}BE`:''}`) +
+    kpi('Win Rate', s.decidedCount?s.winRate.toFixed(1)+'%':'—', s.winRate>=50?'pos':'neg', `${s.wins}W / ${s.losses}L / ${s.be}BE`) +
     kpi('Profit Factor', s.decidedCount?pf:'—', s.profitFactor>=1?'pos':'neg') +
     kpi('Expectancy', s.n?fmtMoneySigned(s.expectancy):'—', s.expectancy>=0?'pos':'neg', 'per trade') +
     kpi('Avg Winner', s.wins?fmtMoneySigned(s.avgWinner):'—', 'pos') +
@@ -1510,7 +1546,7 @@ function renderAccountsView(){
       <div class="acct-card-top">
         <div>
           <div class="acct-card-name">${a.account_label}${isLegacy?' <span class="tag" style="font-size:10px;">legacy</span>':''}</div>
-          <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.external_account_id?' · '+a.external_account_id:''}${a.account_currency?' · '+a.account_currency:''}</div>
+          <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.external_account_id?' · '+a.external_account_id:''}${a.account_currency?' · '+a.account_currency:''}${a.balance?' · balans '+fmtMoney(Number(a.balance)):''}</div>
         </div>
         <div class="acct-card-count">${count}<span>trades</span></div>
       </div>
@@ -1518,10 +1554,45 @@ function renderAccountsView(){
       : `<div class="acct-card-status">
           <span style="color:${statusColor};">●</span> Laatste sync: ${lastRun}
           ${ss && ss.last_sync_status && ss.last_sync_status!=='ok' ? `<span style="color:var(--neg);"> — ${ss.last_sync_status}</span>`:''}
+        </div>
+        <div class="be-setting">
+          <div class="be-setting-head">Breakeven-drempel</div>
+          <div class="be-setting-desc">Trades met een resultaat binnen deze marge tellen als <strong>BE</strong>, niet als win of loss.</div>
+          <div class="be-setting-row">
+            <label>% van balans</label>
+            <input type="number" step="0.01" min="0" id="bePct-${a.id}" value="${a.be_threshold_pct ?? DEFAULT_BE_PCT}" style="width:80px;">
+            <span class="be-eq">= ${a.balance? fmtMoney(Math.abs(Number(a.balance) * Number(a.be_threshold_pct ?? DEFAULT_BE_PCT) / 100)) : '—'}</span>
+          </div>
+          <div class="be-setting-row">
+            <label>of vast bedrag ($)</label>
+            <input type="number" step="0.01" min="0" id="beUsd-${a.id}" value="${a.be_threshold_usd ?? ''}" placeholder="leeg = gebruik %" style="width:120px;">
+          </div>
+          <button type="button" class="btn secondary small" onclick="saveBeThreshold('${a.id}')">Opslaan</button>
         </div>`}
     </div>`;
   });
   el.innerHTML = html;
+}
+
+// Persist a per-account breakeven threshold and re-render everything with it.
+async function saveBeThreshold(accountId){
+  const pctEl = document.getElementById('bePct-'+accountId);
+  const usdEl = document.getElementById('beUsd-'+accountId);
+  const pct = pctEl && pctEl.value!=='' ? Number(pctEl.value) : DEFAULT_BE_PCT;
+  const usd = usdEl && usdEl.value!=='' ? Number(usdEl.value) : null;
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ be_threshold_pct: pct, be_threshold_usd: usd })
+      .eq('id', accountId);
+    if(error) throw error;
+    const acc = accounts.find(a=>a.id===accountId);
+    if(acc){ acc.be_threshold_pct = pct; acc.be_threshold_usd = usd; }
+    showToast('Breakeven-drempel opgeslagen ✓');
+    renderAccountsView(); renderDashboard(); renderLog(); renderCoach();
+  }catch(e){
+    console.error('BE threshold save failed', e);
+    showToast('Opslaan mislukt: ' + (e.message||''));
+  }
 }
 
 /* ============================================================
@@ -1564,8 +1635,11 @@ function renderCalendar(){
       html += `<div style="aspect-ratio:1; border:1px solid var(--hairline); border-radius:8px; padding:6px; display:flex; flex-direction:column;"><span style="font-size:11px; color:var(--text-faint);">${day}</span></div>`;
     } else {
       const dayPnl = dayTrades.reduce((s,t)=>s+t.netPnl,0);
-      const col = dayPnl>0?'var(--pos)':dayPnl<0?'var(--neg)':'var(--be)';
-      const bg = dayPnl>0?'rgba(47,214,167,0.10)':dayPnl<0?'rgba(242,85,92,0.10)':'rgba(224,184,75,0.10)';
+      // Use the same breakeven threshold as trade classification, so a day that
+      // netted a couple of dollars shows as breakeven (yellow), not a win.
+      const dayThr = beThresholdFor(dayTrades[0].accountId);
+      const col = dayPnl>dayThr?'var(--pos)':dayPnl<-dayThr?'var(--neg)':'var(--be)';
+      const bg = dayPnl>dayThr?'rgba(47,214,167,0.10)':dayPnl<-dayThr?'rgba(242,85,92,0.10)':'rgba(224,184,75,0.10)';
       html += `<div onclick="filterLogByDate('${dateStr}')" style="aspect-ratio:1; border:1px solid ${col}; background:${bg}; border-radius:8px; padding:6px; display:flex; flex-direction:column; justify-content:space-between; cursor:pointer;">
         <span style="font-size:11px; color:var(--text-dim);">${day}</span>
         <div><div style="font-size:12px; font-weight:700; color:${col};">${fmtMoneySigned(dayPnl)}</div><div style="font-size:9px; color:var(--text-faint);">${dayTrades.length} trade${dayTrades.length>1?'s':''}</div></div>
@@ -1699,6 +1773,7 @@ window.filterLogByDate = filterLogByDate;
 window.calPrev = calPrev;
 window.calNext = calNext;
 window.copyCoachContext = copyCoachContext;
+window.saveBeThreshold = saveBeThreshold;
 window.switchViewGlobal = switchView;
 
 /* ---------- boot ---------- */
