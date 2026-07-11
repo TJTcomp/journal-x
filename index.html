@@ -470,6 +470,7 @@
   .be-setting-row{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
   .be-setting-row label{ font-size:12px; color:var(--text-dim); min-width:110px; margin:0; }
   .be-eq{ font-size:12px; color:var(--be); font-family:'JetBrains Mono',monospace; }
+  .be-warn{ font-size:11.5px; color:var(--be); background:var(--be-glow); border:1px solid var(--be-dim); border-radius:8px; padding:8px 10px; margin-bottom:10px; line-height:1.5; }
 
   /* Journal modal facts grid */
   #jFacts{ display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-bottom:20px; }
@@ -803,19 +804,30 @@ let charts = {};
    grows, with an optional fixed-dollar override per account. Trades whose net
    P&L falls inside ±threshold are classified BE and excluded from win rate. */
 const DEFAULT_BE_PCT = 0.20;
-const FALLBACK_BE_USD = 0.005; // used only if we have no balance for the account
+const FALLBACK_BE_USD = 0.005; // only when we truly have nothing to go on
 function beThresholdFor(accountId){
   const acc = accounts.find(a=>a.id===accountId);
   if(!acc) return FALLBACK_BE_USD;
-  // A fixed dollar override wins if the user set one.
-  if(acc.be_threshold_usd !== null && acc.be_threshold_usd !== undefined && !isNaN(acc.be_threshold_usd)){
-    return Math.abs(Number(acc.be_threshold_usd));
+  // A fixed dollar override always wins if the user set one. This also makes
+  // the threshold usable when the balance hasn't synced yet.
+  const usd = Number(acc.be_threshold_usd);
+  if(acc.be_threshold_usd !== null && acc.be_threshold_usd !== undefined && acc.be_threshold_usd !== '' && !isNaN(usd) && usd > 0){
+    return Math.abs(usd);
   }
   const bal = Number(acc.balance);
-  if(!bal || isNaN(bal)) return FALLBACK_BE_USD;
-  const pct = (acc.be_threshold_pct===null||acc.be_threshold_pct===undefined||isNaN(acc.be_threshold_pct))
-    ? DEFAULT_BE_PCT : Number(acc.be_threshold_pct);
+  if(!bal || isNaN(bal)) return FALLBACK_BE_USD;  // no balance yet -> see warning in Accounts view
+  const pctRaw = acc.be_threshold_pct;
+  const pct = (pctRaw===null||pctRaw===undefined||isNaN(Number(pctRaw))) ? DEFAULT_BE_PCT : Number(pctRaw);
   return Math.abs(bal * pct / 100);
+}
+// True when an account can't compute a real threshold (no balance, no fixed $).
+function beThresholdMissing(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return false;
+  const usd = Number(acc.be_threshold_usd);
+  const hasUsd = acc.be_threshold_usd!==null && acc.be_threshold_usd!==undefined && acc.be_threshold_usd!=='' && !isNaN(usd) && usd>0;
+  const hasBal = !!Number(acc.balance);
+  return !hasUsd && !hasBal;
 }
 function outcomeOf(t){
   const p = t.netPnl;
@@ -1558,14 +1570,18 @@ function renderAccountsView(){
         <div class="be-setting">
           <div class="be-setting-head">Breakeven-drempel</div>
           <div class="be-setting-desc">Trades met een resultaat binnen deze marge tellen als <strong>BE</strong>, niet als win of loss.</div>
+          ${beThresholdMissing(a.id) ? `<div class="be-warn">⚠ Nog geen accountbalans gesynct — de %-drempel kan niet berekend worden. Vul hieronder een <strong>vast bedrag</strong> in, of herstart de sync-service zodat de balans wordt opgehaald.</div>` : ''}
           <div class="be-setting-row">
             <label>% van balans</label>
             <input type="number" step="0.01" min="0" id="bePct-${a.id}" value="${a.be_threshold_pct ?? DEFAULT_BE_PCT}" style="width:80px;">
-            <span class="be-eq">= ${a.balance? fmtMoney(Math.abs(Number(a.balance) * Number(a.be_threshold_pct ?? DEFAULT_BE_PCT) / 100)) : '—'}</span>
+            <span class="be-eq">= ${a.balance? fmtMoney(Math.abs(Number(a.balance) * Number(a.be_threshold_pct ?? DEFAULT_BE_PCT) / 100)) : 'balans onbekend'}</span>
           </div>
           <div class="be-setting-row">
             <label>of vast bedrag ($)</label>
-            <input type="number" step="0.01" min="0" id="beUsd-${a.id}" value="${a.be_threshold_usd ?? ''}" placeholder="leeg = gebruik %" style="width:120px;">
+            <input type="number" step="0.01" min="0" id="beUsd-${a.id}" value="${a.be_threshold_usd ?? ''}" placeholder="bv. 10" style="width:120px;">
+          </div>
+          <div class="be-setting-row" style="color:var(--text-faint); font-size:11px;">
+            Actieve drempel: <strong style="color:var(--be);">±${fmtMoney(beThresholdFor(a.id))}</strong>
           </div>
           <button type="button" class="btn secondary small" onclick="saveBeThreshold('${a.id}')">Opslaan</button>
         </div>`}
