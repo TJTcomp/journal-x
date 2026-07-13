@@ -737,7 +737,7 @@
         <label>Entry</label>
         <div class="filegroup" id="jEntryDrop" style="border:1px dashed var(--border); border-radius:10px; padding:14px; text-align:center; cursor:pointer;">
           <span id="jEntryHint" style="font-size:12px; color:var(--text-faint);">Klik om entry-screenshot te uploaden</span>
-          <img id="jEntryPreview" style="display:none; max-width:100%; margin-top:10px; border-radius:8px;">
+          <img id="jEntryPreview" onclick="event.stopPropagation(); openLightbox(this.src)" style="display:none; max-width:100%; margin-top:10px; border-radius:8px; cursor:zoom-in;">
         </div>
         <input type="file" id="jEntryInput" accept="image/*" style="display:none;">
       </div>
@@ -745,7 +745,7 @@
         <label>Exit</label>
         <div class="filegroup" id="jExitDrop" style="border:1px dashed var(--border); border-radius:10px; padding:14px; text-align:center; cursor:pointer;">
           <span id="jExitHint" style="font-size:12px; color:var(--text-faint);">Klik om exit-screenshot te uploaden</span>
-          <img id="jExitPreview" style="display:none; max-width:100%; margin-top:10px; border-radius:8px;">
+          <img id="jExitPreview" onclick="event.stopPropagation(); openLightbox(this.src)" style="display:none; max-width:100%; margin-top:10px; border-radius:8px; cursor:zoom-in;">
         </div>
         <input type="file" id="jExitInput" accept="image/*" style="display:none;">
       </div>
@@ -756,6 +756,12 @@
 </div>
 
 <div id="saveToast" class="toast"></div>
+
+<!-- SCREENSHOT LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox()" style="display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,0.92); backdrop-filter:blur(8px); cursor:zoom-out; justify-content:center; align-items:center;">
+  <button type="button" onclick="closeLightbox()" style="position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.12); border:none; color:#fff; font-size:22px; width:40px; height:40px; border-radius:50%; cursor:pointer; z-index:501; display:flex; align-items:center; justify-content:center;">✕</button>
+  <img id="lightboxImg" onclick="event.stopPropagation()" style="max-width:94vw; max-height:92vh; border-radius:10px; object-fit:contain; box-shadow:0 12px 60px rgba(0,0,0,0.5); cursor:default;">
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -1670,6 +1676,22 @@ function calNext(){ calMonthOffset++; renderCalendar(); }
 function filterLogByDate(dateStr){ logDateFilter=dateStr; switchView('log'); renderLog(); }
 function clearDateFilter(){ logDateFilter=null; renderLog(); }
 
+/* ---------- SCREENSHOT LIGHTBOX ---------- */
+function openLightbox(src){
+  if(!src) return;
+  const lb = $('#lightbox'); if(!lb) return;
+  $('#lightboxImg').src = src;
+  lb.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox(){
+  const lb = $('#lightbox'); if(!lb) return;
+  lb.style.display = 'none';
+  // Only restore scroll if the journal modal is also closed
+  if($('#journalModalBg').style.display !== 'flex') document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && $('#lightbox').style.display==='flex') closeLightbox(); });
+
 /* ---------- TOAST ---------- */
 function showToast(msg){
   const t=$('#saveToast'); if(!t) return;
@@ -1790,6 +1812,8 @@ window.calPrev = calPrev;
 window.calNext = calNext;
 window.copyCoachContext = copyCoachContext;
 window.saveBeThreshold = saveBeThreshold;
+window.openLightbox = openLightbox;
+window.closeLightbox = closeLightbox;
 window.switchViewGlobal = switchView;
 
 /* ---------- boot ---------- */
