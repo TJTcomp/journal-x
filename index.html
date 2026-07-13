@@ -613,6 +613,9 @@
         <h1>Trade Log</h1>
         <div class="sub"><span id="logCount">0</span> trades — tik een trade om je journal in te vullen.</div>
       </div>
+      <div class="topbar-actions">
+        <button type="button" class="btn secondary small" id="refreshBtn" onclick="refreshNow()">↻ Ververs</button>
+      </div>
     </div>
     <div class="view-body">
       <div class="filterbar">
@@ -1063,6 +1066,46 @@ function activeTrades(){
   return brokerTrades.filter(t=>t.accountId===activeAccountId);
 }
 
+/* ---------- AUTO-REFRESH ----------
+   The sync service writes new trades to Supabase in the background. Rather than
+   making you reload, we quietly check for new ones and refresh the moment they
+   land. Cheap: it only counts rows, and only re-renders when something changed. */
+let autoRefreshTimer = null;
+let lastKnownTradeCount = -1;
+const AUTO_REFRESH_MS = 20000;
+
+async function checkForNewTrades(){
+  if(document.hidden) return;              // don't poll a backgrounded tab
+  try{
+    const { count, error } = await supabase
+      .from('broker_trades')
+      .select('id', { count:'exact', head:true });
+    if(error) return;
+    if(lastKnownTradeCount !== -1 && count > lastKnownTradeCount){
+      const added = count - lastKnownTradeCount;
+      await loadAll();
+      showToast(`${added} nieuwe trade${added>1?'s':''} gesynct ✓`);
+    }
+    lastKnownTradeCount = count;
+  }catch(e){ /* offline or transient — try again next tick */ }
+}
+function startAutoRefresh(){
+  if(autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(checkForNewTrades, AUTO_REFRESH_MS);
+  // Also check the instant you come back to the app — the common case is
+  // "closed a trade on my phone, opened the journal".
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkForNewTrades(); });
+}
+// Manual "Ververs" button — never wait for the timer.
+async function refreshNow(){
+  const btn = $('#refreshBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Verversen…'; }
+  await loadAll();
+  lastKnownTradeCount = brokerTrades.length;
+  showToast('Ververst ✓');
+  if(btn){ btn.disabled = false; btn.textContent = '↻ Ververs'; }
+}
+
 async function loadAll(){
   try{
     const [accRes, btRes, jRes, ssRes] = await Promise.all([
@@ -1105,6 +1148,8 @@ async function showAppShell(user){
   $('#appShell').style.display='flex';
   const emailEl = $('#currentUserEmail'); if(emailEl) emailEl.textContent = user.email || '';
   await loadAll();
+  lastKnownTradeCount = brokerTrades.length;
+  startAutoRefresh();
 }
 function setAuthError(msg){ const e=$('#authError'); if(e){ e.style.display='block'; e.textContent=msg; } }
 function setAuthInfo(msg){ const e=$('#authInfo'); if(e){ e.style.display='block'; e.textContent=msg; } }
@@ -1818,6 +1863,7 @@ window.copyCoachContext = copyCoachContext;
 window.saveBeThreshold = saveBeThreshold;
 window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
+window.refreshNow = refreshNow;
 window.switchViewGlobal = switchView;
 
 /* ---------- boot ---------- */
