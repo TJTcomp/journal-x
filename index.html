@@ -731,8 +731,8 @@
 
     <div class="field" style="margin-bottom:14px;"><label>Lessons learned</label><textarea id="jLessons" placeholder="Wat neem je hieruit mee?"></textarea></div>
 
-    <div class="sec-label"><span style="color:var(--text-ghost);">03</span> Risk (optioneel — voor R-multiple)</div>
-    <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">MT5 levert geen initiële stop mee. Vul één van beide in en je R-multiple wordt automatisch berekend. Dit past je brokerdata niet aan.</div>
+    <div class="sec-label"><span style="color:var(--text-ghost);">03</span> Risk (optioneel — override)</div>
+    <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">Je stop loss wordt <strong>automatisch uit MT5 gehaald</strong> en je R-multiple daaruit berekend — je hoeft hier normaal niets in te vullen. Enkel invullen als MT5 geen stop had (bv. handmatig gesloten zonder SL), of als je de berekening wil overrulen.</div>
     <div class="form-row c2" style="margin-bottom:20px;">
       <div class="field"><label>Initiële SL-prijs</label><input type="number" step="any" id="jInitialSl" placeholder="bv. 17980"></div>
       <div class="field"><label>Of: gepland risico ($)</label><input type="number" step="any" id="jPlannedRisk" placeholder="bv. 100"></div>
@@ -855,18 +855,53 @@ function byCloseTime(a,b){
 }
 // R-multiple: only when user supplied initial SL or planned risk. $/point cancels
 // out in the ratio method, so no instrument point value is needed.
-function rMultipleOf(t){
-  if(isNum(t.plannedRiskUsd) && t.plannedRiskUsd > 0) return t.netPnl / t.plannedRiskUsd;
-  if(isNum(t.initialSlPrice) && isNum(t.openPrice) && isNum(t.closePrice)){
-    const priceRisk = Math.abs(t.openPrice - t.initialSlPrice);
-    if(priceRisk > 0){
-      const mag = Math.abs(t.closePrice - t.openPrice) / priceRisk;
-      return t.netPnl >= 0 ? mag : -mag;
-    }
-  }
-  return null;
+/* ---------- R-MULTIPLE ----------
+   R = realised result ÷ what you initially risked, BOTH IN MONEY.
+
+   Getting this from prices alone is wrong: it silently ignores commissions and
+   swaps, and assumes the exit distance maps 1:1 onto money. So we work in
+   dollars throughout.
+
+   Initial risk in $ is derived from the stop distance, scaled by the dollar
+   value the market actually assigned to your price move on THIS trade:
+       $ per price unit = |gross P&L| ÷ |exit − entry|
+       initial risk $   = |entry − stop| × ($ per price unit)
+       R                = net P&L ÷ initial risk $
+   This needs no instrument point-value table — it reads the conversion straight
+   out of the trade the broker already settled. Net P&L (after costs) on top,
+   gross-derived scaling underneath: that's your true R, costs included.
+
+   Stop loss source, in order of priority:
+     1. What YOU typed in the journal (an explicit override).
+     2. What the broker recorded on the entry order (automatic — the normal case).
+   Or, if you'd rather skip stops entirely, type the $ you planned to risk. */
+function initialRiskUsd(t){
+  // An explicitly planned risk always wins — it's the most direct statement.
+  if(isNum(t.plannedRiskUsd) && t.plannedRiskUsd > 0) return t.plannedRiskUsd;
+
+  const sl = isNum(t.initialSlPrice) ? t.initialSlPrice          // your override
+           : isNum(t.brokerSlPrice)  ? t.brokerSlPrice           // from MT5
+           : null;
+  if(sl === null || !isNum(t.openPrice) || !isNum(t.closePrice)) return null;
+
+  const stopDistance = Math.abs(t.openPrice - sl);
+  const exitDistance = Math.abs(t.closePrice - t.openPrice);
+  if(stopDistance <= 0 || exitDistance <= 0) return null;
+
+  // What one price unit was worth in cash on this trade, per the broker's own
+  // gross P&L. Using gross (not net) keeps the scaling clean — costs are then
+  // applied once, via net P&L in the numerator.
+  const dollarsPerPriceUnit = Math.abs(t.grossPnl) / exitDistance;
+  if(!isFinite(dollarsPerPriceUnit) || dollarsPerPriceUnit <= 0) return null;
+
+  return stopDistance * dollarsPerPriceUnit;
 }
-function hasR(t){ const r = rMultipleOf(t); return r !== null && !isNaN(r); }
+function rMultipleOf(t){
+  const risk = initialRiskUsd(t);
+  if(risk === null || risk <= 0) return null;
+  return t.netPnl / risk;   // net of commissions and swaps — your real R
+}
+function hasR(t){ const r = rMultipleOf(t); return r !== null && !isNaN(r) && isFinite(r); }
 
 function computeStats(list){
   const n = list.length;
@@ -1032,6 +1067,7 @@ function mergeTradeRow(bt, journal){
     openTime: bt.open_time, closeTime: bt.close_time,
     openPrice: num(bt.open_price), closePrice: num(bt.close_price),
     grossPnl: num(bt.gross_pnl)||0, commission: num(bt.commission)||0, swap: num(bt.swap)||0, netPnl: num(bt.net_pnl)||0,
+    brokerSlPrice: bt.initial_sl_price!=null ? num(bt.initial_sl_price) : null,
     date: (bt.close_time||bt.open_time||'').slice(0,10),
     journalId: journal?journal.id:null,
     notes: journal?(journal.notes||''):'',
@@ -1110,7 +1146,7 @@ async function loadAll(){
   try{
     const [accRes, btRes, jRes, ssRes] = await Promise.all([
       supabase.from('broker_accounts').select('*').order('created_at',{ascending:true}),
-      supabase.from('broker_trades').select('id,account_id,source,external_id,symbol,direction,volume,open_time,close_time,open_price,close_price,gross_pnl,commission,swap,net_pnl').order('close_time',{ascending:false}),
+      supabase.from('broker_trades').select('id,account_id,source,external_id,symbol,direction,volume,open_time,close_time,open_price,close_price,gross_pnl,commission,swap,net_pnl,initial_sl_price').order('close_time',{ascending:false}),
       supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd'),
       supabase.from('sync_state').select('*'),
     ]);
@@ -1420,6 +1456,7 @@ function openJournal(tradeId){
   // Read-only broker facts
   const o = outcomeOf(t);
   const r = rMultipleOf(t);
+  const riskUsd = initialRiskUsd(t);
   $('#jFacts').innerHTML = `
     <div class="fact"><span class="fact-l">Instrument</span><span class="fact-v">${t.symbol}</span></div>
     <div class="fact"><span class="fact-l">Richting</span><span class="fact-v" style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'};">${t.direction==='long'?'Long':'Short'}</span></div>
@@ -1433,7 +1470,9 @@ function openJournal(tradeId){
     <div class="fact"><span class="fact-l">Swap</span><span class="fact-v">${fmtMoney(t.swap)}</span></div>
     <div class="fact"><span class="fact-l">Net PnL</span><span class="fact-v" style="color:${t.netPnl>=0?'var(--pos)':'var(--neg)'}; font-weight:700;">${fmtMoneySigned(t.netPnl)}</span></div>
     <div class="fact"><span class="fact-l">Resultaat</span><span class="fact-v"><span class="tag ${o==='Win'?'win':o==='Loss'?'loss':'be'}">${o}</span></span></div>
-    <div class="fact"><span class="fact-l">R-multiple</span><span class="fact-v" style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'— (vul SL/risk in)':fmtR(r)}</span></div>
+    <div class="fact"><span class="fact-l">Stop Loss</span><span class="fact-v">${t.brokerSlPrice ?? '— (niet in MT5)'}</span></div>
+    <div class="fact"><span class="fact-l">Risico</span><span class="fact-v">${riskUsd===null?'—':fmtMoney(riskUsd)}</span></div>
+    <div class="fact"><span class="fact-l">R-multiple</span><span class="fact-v" style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'— (geen SL bekend)':fmtR(r)}</span></div>
   `;
 
   // Journal fields
