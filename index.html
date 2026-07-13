@@ -858,50 +858,68 @@ function byCloseTime(a,b){
 /* ---------- R-MULTIPLE ----------
    R = realised result ÷ what you initially risked, BOTH IN MONEY.
 
-   Getting this from prices alone is wrong: it silently ignores commissions and
-   swaps, and assumes the exit distance maps 1:1 onto money. So we work in
-   dollars throughout.
+   Prices alone won't do: they ignore commissions and swaps, and assume price
+   distance maps 1:1 onto cash. So we work in dollars throughout.
 
-   Initial risk in $ is derived from the stop distance, scaled by the dollar
-   value the market actually assigned to your price move on THIS trade:
-       $ per price unit = |gross P&L| ÷ |exit − entry|
-       initial risk $   = |entry − stop| × ($ per price unit)
-       R                = net P&L ÷ initial risk $
-   This needs no instrument point-value table — it reads the conversion straight
-   out of the trade the broker already settled. Net P&L (after costs) on top,
-   gross-derived scaling underneath: that's your true R, costs included.
-
-   Stop loss source, in order of priority:
-     1. What YOU typed in the journal (an explicit override).
-     2. What the broker recorded on the entry order (automatic — the normal case).
-   Or, if you'd rather skip stops entirely, type the $ you planned to risk. */
-function initialRiskUsd(t){
-  // An explicitly planned risk always wins — it's the most direct statement.
-  if(isNum(t.plannedRiskUsd) && t.plannedRiskUsd > 0) return t.plannedRiskUsd;
-
-  const sl = isNum(t.initialSlPrice) ? t.initialSlPrice          // your override
-           : isNum(t.brokerSlPrice)  ? t.brokerSlPrice           // from MT5
-           : null;
-  if(sl === null || !isNum(t.openPrice) || !isNum(t.closePrice)) return null;
-
-  const stopDistance = Math.abs(t.openPrice - sl);
-  const exitDistance = Math.abs(t.closePrice - t.openPrice);
-  if(stopDistance <= 0 || exitDistance <= 0) return null;
-
-  // What one price unit was worth in cash on this trade, per the broker's own
-  // gross P&L. Using gross (not net) keeps the scaling clean — costs are then
-  // applied once, via net P&L in the numerator.
-  const dollarsPerPriceUnit = Math.abs(t.grossPnl) / exitDistance;
-  if(!isFinite(dollarsPerPriceUnit) || dollarsPerPriceUnit <= 0) return null;
-
-  return stopDistance * dollarsPerPriceUnit;
+   Where the initial risk comes from, most precise first:
+     1. plannedRiskUsd  — you typed the exact $ you risked on this trade.
+     2. A real stop loss — either the one you typed, or the one the sync service
+        derived from MT5. (Your broker doesn't store the SL price, so it can only
+        be recovered for trades the stop actually closed: there the exit fill IS
+        the stop. Exact, not estimated.)
+     3. The account's default risk — what you normally risk per trade. Used for
+        trades that closed on TP or by hand, where the stop left no trace.
+   If none of the three is available, R is simply unknown (null), never guessed. */
+function accountDefaultRiskUsd(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return null;
+  const usd = Number(acc.default_risk_usd);
+  if(acc.default_risk_usd!=null && acc.default_risk_usd!=='' && !isNaN(usd) && usd>0) return usd;
+  const pct = Number(acc.default_risk_pct);
+  const bal = Number(acc.balance);
+  if(acc.default_risk_pct!=null && !isNaN(pct) && pct>0 && bal && !isNaN(bal)) return bal * pct / 100;
+  return null;
 }
+// Returns { usd, source } so the UI can show how precise the number is.
+function initialRisk(t){
+  if(isNum(t.plannedRiskUsd) && t.plannedRiskUsd > 0){
+    return { usd: t.plannedRiskUsd, source: 'planned' };
+  }
+  const sl = isNum(t.initialSlPrice) ? t.initialSlPrice   // your manual override
+           : isNum(t.brokerSlPrice)  ? t.brokerSlPrice    // derived from MT5
+           : null;
+  if(sl !== null && isNum(t.openPrice) && isNum(t.closePrice)){
+    const stopDistance = Math.abs(t.openPrice - sl);
+    const exitDistance = Math.abs(t.closePrice - t.openPrice);
+    if(stopDistance > 0 && exitDistance > 0){
+      // What one price unit was worth in cash on this trade, per the broker's
+      // own gross P&L. Using gross keeps the scaling clean; costs are applied
+      // once, via net P&L in the numerator.
+      const dollarsPerPriceUnit = Math.abs(t.grossPnl) / exitDistance;
+      if(isFinite(dollarsPerPriceUnit) && dollarsPerPriceUnit > 0){
+        const isOverride = isNum(t.initialSlPrice);
+        return { usd: stopDistance * dollarsPerPriceUnit, source: isOverride ? 'sl-manual' : 'sl-broker' };
+      }
+    }
+  }
+  const fallback = accountDefaultRiskUsd(t.accountId);
+  if(fallback && fallback > 0) return { usd: fallback, source: 'default' };
+  return { usd: null, source: 'none' };
+}
+function initialRiskUsd(t){ return initialRisk(t).usd; }
 function rMultipleOf(t){
-  const risk = initialRiskUsd(t);
-  if(risk === null || risk <= 0) return null;
-  return t.netPnl / risk;   // net of commissions and swaps — your real R
+  const { usd } = initialRisk(t);
+  if(usd === null || usd <= 0) return null;
+  return t.netPnl / usd;   // net of commissions and swaps — your real R
 }
 function hasR(t){ const r = rMultipleOf(t); return r !== null && !isNaN(r) && isFinite(r); }
+const RISK_SOURCE_LABEL = {
+  'planned':   'jouw ingevoerde risico',
+  'sl-manual': 'jouw ingevoerde SL',
+  'sl-broker': 'echte SL uit MT5',
+  'default':   'standaardrisico (geschat)',
+  'none':      'onbekend',
+};
 
 function computeStats(list){
   const n = list.length;
@@ -1280,7 +1298,12 @@ function renderDashboard(){
     const comm = kpi('Commissies', fmtMoney(s.totalCommission), 'neutral');
     const sw = kpi('Swaps', fmtMoney(s.totalSwap), 'neutral');
     const hold = kpi('Gem. Holding', fmtDuration(holding), 'neutral');
-    const rExp = kpi('Expectancy (R)', rStats.count?fmtR(rStats.avgR):'—', rStats.avgR>=0?'pos':'neg', rStats.count?`${rStats.count} trades met risk`:'geen SL/risk ingevuld');
+    const exactR = list.filter(t=>{ const s=initialRisk(t).source; return s==='sl-broker'||s==='sl-manual'||s==='planned'; }).length;
+    const estR = rStats.count - exactR;
+    const rSub = rStats.count
+      ? (estR ? `${exactR} exact · ${estR} geschat` : `${exactR} trades, exact`)
+      : 'stel standaardrisico in';
+    const rExp = kpi('Expectancy (R)', rStats.count?fmtR(rStats.avgR):'—', rStats.avgR>=0?'pos':'neg', rSub);
     const bestD = kpi('Beste Dag', days.best?fmtMoneySigned(days.best.pnl):'—', 'pos', days.best?fmtDate(days.best.day):'');
     const worstD = kpi('Slechtste Dag', days.worst?fmtMoneySigned(days.worst.pnl):'—', 'neg', days.worst?fmtDate(days.worst.day):'');
     sec.innerHTML = gp+gl+comm+sw+hold+rExp+bestD+worstD;
@@ -1456,7 +1479,7 @@ function openJournal(tradeId){
   // Read-only broker facts
   const o = outcomeOf(t);
   const r = rMultipleOf(t);
-  const riskUsd = initialRiskUsd(t);
+  const risk = initialRisk(t);
   $('#jFacts').innerHTML = `
     <div class="fact"><span class="fact-l">Instrument</span><span class="fact-v">${t.symbol}</span></div>
     <div class="fact"><span class="fact-l">Richting</span><span class="fact-v" style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'};">${t.direction==='long'?'Long':'Short'}</span></div>
@@ -1470,9 +1493,10 @@ function openJournal(tradeId){
     <div class="fact"><span class="fact-l">Swap</span><span class="fact-v">${fmtMoney(t.swap)}</span></div>
     <div class="fact"><span class="fact-l">Net PnL</span><span class="fact-v" style="color:${t.netPnl>=0?'var(--pos)':'var(--neg)'}; font-weight:700;">${fmtMoneySigned(t.netPnl)}</span></div>
     <div class="fact"><span class="fact-l">Resultaat</span><span class="fact-v"><span class="tag ${o==='Win'?'win':o==='Loss'?'loss':'be'}">${o}</span></span></div>
-    <div class="fact"><span class="fact-l">Stop Loss</span><span class="fact-v">${t.brokerSlPrice ?? '— (niet in MT5)'}</span></div>
-    <div class="fact"><span class="fact-l">Risico</span><span class="fact-v">${riskUsd===null?'—':fmtMoney(riskUsd)}</span></div>
-    <div class="fact"><span class="fact-l">R-multiple</span><span class="fact-v" style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'— (geen SL bekend)':fmtR(r)}</span></div>
+    <div class="fact"><span class="fact-l">Stop Loss</span><span class="fact-v">${t.brokerSlPrice ?? t.initialSlPrice ?? '—'}</span></div>
+    <div class="fact"><span class="fact-l">Risico</span><span class="fact-v">${risk.usd===null?'—':fmtMoney(risk.usd)}</span></div>
+    <div class="fact"><span class="fact-l">Risico-bron</span><span class="fact-v" style="font-size:11px; color:${risk.source==='default'?'var(--be)':'var(--text-dim)'};">${RISK_SOURCE_LABEL[risk.source]}</span></div>
+    <div class="fact"><span class="fact-l">R-multiple</span><span class="fact-v" style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'— (stel standaardrisico in)':fmtR(r)}</span></div>
   `;
 
   // Journal fields
@@ -1678,10 +1702,45 @@ function renderAccountsView(){
             Actieve drempel: <strong style="color:var(--be);">±${fmtMoney(beThresholdFor(a.id))}</strong>
           </div>
           <button type="button" class="btn secondary small" onclick="saveBeThreshold('${a.id}')">Opslaan</button>
+        </div>
+        <div class="be-setting">
+          <div class="be-setting-head">Standaardrisico per trade</div>
+          <div class="be-setting-desc">Je broker bewaart je SL-prijs niet. Voor trades die <strong>door hun stop loss</strong> sloten leiden we de SL exact af. Voor trades die op TP of handmatig sloten gebruiken we dit bedrag om je R-multiple te berekenen.</div>
+          <div class="be-setting-row">
+            <label>Vast bedrag ($)</label>
+            <input type="number" step="0.01" min="0" id="riskUsd-${a.id}" value="${a.default_risk_usd ?? ''}" placeholder="bv. 50" style="width:120px;">
+          </div>
+          <div class="be-setting-row">
+            <label>of % van balans</label>
+            <input type="number" step="0.01" min="0" id="riskPct-${a.id}" value="${a.default_risk_pct ?? ''}" placeholder="bv. 1" style="width:80px;">
+            <span class="be-eq">${a.balance && a.default_risk_pct ? '= '+fmtMoney(Number(a.balance)*Number(a.default_risk_pct)/100) : ''}</span>
+          </div>
+          <button type="button" class="btn secondary small" onclick="saveDefaultRisk('${a.id}')">Opslaan</button>
         </div>`}
     </div>`;
   });
   el.innerHTML = html;
+}
+
+// Persist the account's default risk-per-trade, used when a trade's stop left no trace.
+async function saveDefaultRisk(accountId){
+  const usdEl = document.getElementById('riskUsd-'+accountId);
+  const pctEl = document.getElementById('riskPct-'+accountId);
+  const usd = usdEl && usdEl.value!=='' ? Number(usdEl.value) : null;
+  const pct = pctEl && pctEl.value!=='' ? Number(pctEl.value) : null;
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ default_risk_usd: usd, default_risk_pct: pct })
+      .eq('id', accountId);
+    if(error) throw error;
+    const acc = accounts.find(a=>a.id===accountId);
+    if(acc){ acc.default_risk_usd = usd; acc.default_risk_pct = pct; }
+    showToast('Standaardrisico opgeslagen ✓');
+    renderAccountsView(); renderDashboard(); renderLog(); renderCoach();
+  }catch(e){
+    console.error('default risk save failed', e);
+    showToast('Opslaan mislukt: ' + (e.message||''));
+  }
 }
 
 // Persist a per-account breakeven threshold and re-render everything with it.
@@ -1900,6 +1959,7 @@ window.calPrev = calPrev;
 window.calNext = calNext;
 window.copyCoachContext = copyCoachContext;
 window.saveBeThreshold = saveBeThreshold;
+window.saveDefaultRisk = saveDefaultRisk;
 window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
 window.refreshNow = refreshNow;
