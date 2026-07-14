@@ -1151,13 +1151,46 @@ function startAutoRefresh(){
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkForNewTrades(); });
 }
 // Manual "Ververs" button — never wait for the timer.
+// The Ververs button. Simply re-reading the database wouldn't help: a trade you
+// just closed isn't there yet — the sync service on your PC hasn't fetched it.
+// So we ask the service to sync NOW (via a flag it watches every few seconds),
+// then wait briefly for the trades to land.
 async function refreshNow(){
   const btn = $('#refreshBtn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Verversen…'; }
-  await loadAll();
+  const setBtn = (txt, disabled)=>{ if(btn){ btn.textContent = txt; btn.disabled = disabled; } };
+  setBtn('Synct…', true);
+
+  const before = brokerTrades.length;
+  try{
+    // Ask every connected account's sync service to run immediately. We UPDATE
+    // rather than upsert: the sync_state row also holds last_sync_time, and
+    // clobbering that would trigger a needless full re-import.
+    const live = accounts.filter(a=>a.broker_type!=='manual_legacy');
+    if(live.length){
+      await Promise.all(live.map(a=>
+        supabase.from('sync_state')
+          .update({ sync_requested_at: new Date().toISOString() })
+          .eq('account_id', a.id)
+      ));
+    }
+
+    // Give the service a moment, checking as we go so we return as soon as
+    // something actually arrives rather than always waiting the full time.
+    for(let i=0; i<10; i++){                 // up to ~10s
+      await new Promise(r=>setTimeout(r, 1000));
+      await loadAll();
+      if(brokerTrades.length > before) break;
+    }
+  }catch(e){
+    console.error('refresh failed', e);
+  }
+
   lastKnownTradeCount = brokerTrades.length;
-  showToast('Ververst ✓');
-  if(btn){ btn.disabled = false; btn.textContent = '↻ Ververs'; }
+  const added = brokerTrades.length - before;
+  showToast(added > 0
+    ? `${added} nieuwe trade${added>1?'s':''} gesynct ✓`
+    : 'Geen nieuwe trades — is de sync-service actief?');
+  setBtn('↻ Ververs', false);
 }
 
 async function loadAll(){
