@@ -767,8 +767,9 @@
 
 <!-- SCREENSHOT LIGHTBOX -->
 <div id="lightbox" onclick="closeLightbox()" style="display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,0.92); backdrop-filter:blur(8px); cursor:zoom-out; justify-content:center; align-items:center;">
-  <button type="button" onclick="closeLightbox()" style="position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.12); border:none; color:#fff; font-size:22px; width:40px; height:40px; border-radius:50%; cursor:pointer; z-index:501; display:flex; align-items:center; justify-content:center;">✕</button>
-  <img id="lightboxImg" onclick="event.stopPropagation()" style="max-width:94vw; max-height:92vh; border-radius:10px; object-fit:contain; box-shadow:0 12px 60px rgba(0,0,0,0.5); cursor:default;">
+  <button type="button" onclick="closeLightbox()" style="position:absolute; top:calc(16px + env(safe-area-inset-top)); right:calc(16px + env(safe-area-inset-right)); background:rgba(255,255,255,0.18); border:none; color:#fff; font-size:24px; width:48px; height:48px; border-radius:50%; cursor:pointer; z-index:501; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; touch-action:manipulation;">✕</button>
+  <img id="lightboxImg" onclick="event.stopPropagation()" style="max-width:94vw; max-height:80vh; border-radius:10px; object-fit:contain; box-shadow:0 12px 60px rgba(0,0,0,0.5); cursor:default;">
+  <button type="button" onclick="closeLightbox()" style="position:absolute; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.25); color:#fff; font-size:14px; font-weight:600; padding:12px 28px; border-radius:24px; cursor:pointer; z-index:501; -webkit-tap-highlight-color:transparent; touch-action:manipulation;">Sluiten</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
