@@ -993,7 +993,12 @@ function computeDayExtremes(list){
 function sessionOf(t){
   const iso = t.closeTime||t.openTime; if(!iso) return 'Unknown';
   const h = new Date(iso).getUTCHours();
-  if(h<7) return 'Asian'; if(h<12) return 'London'; if(h<21) return 'New York'; return 'Late';
+  // Standard forex/ICT sessions in UTC. Asia opens in the evening and runs
+  // through the night, so the late hours (>=21:00) belong to Asia, not a
+  // separate 'Late' bucket.
+  if(h >= 21 || h < 7) return 'Asia';
+  if(h < 12) return 'London';
+  return 'New York';
 }
 function computeRStats(list){
   const withR = list.filter(hasR).map(t=>rMultipleOf(t));
@@ -1371,7 +1376,7 @@ function renderDashboard(){
 
   // ---- Breakdowns ----
   renderMoneyBreakdown('symbolTable', groupBy(list, t=>t.symbol));
-  renderMoneyBreakdown('sessionTable', groupBy(list, t=>sessionOf(t)), ['Asian','London','New York','Late']);
+  renderMoneyBreakdown('sessionTable', groupBy(list, t=>sessionOf(t)), ['Asia','London','New York']);
   renderMoneyBreakdown('weekdayTable', weekdayGroups(list), WEEKDAY_ORDER);
   renderMoneyBreakdown('gradeTable', groupBy(list, t=>t.setupGrade), ['A+','A','B','C','FOMO']);
   renderMoneyBreakdown('tagTable', groupBy(list, t=>t.tags));
