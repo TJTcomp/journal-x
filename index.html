@@ -674,8 +674,8 @@
 </div>
 
 <!-- JOURNAL MODAL -->
-<div id="journalModalBg" class="modal-bg" style="display:none;">
-  <div class="modal" style="max-width:760px;">
+<div id="journalModalBg" class="modal-bg" style="display:none;" onclick="closeJournalFromBackdrop(event)">
+  <div class="modal" style="max-width:760px;" onclick="event.stopPropagation()">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
       <h2 style="margin:0;">Trade Journal</h2>
       <button type="button" class="btn secondary small" onclick="closeJournal()">Sluiten</button>
@@ -1085,7 +1085,7 @@ function generateInsights(list){
    DATA LAYER
    ============================================================ */
 function num(v){ return v===null||v===undefined?null:Number(v); }
-function mergeTradeRow(bt, journal){
+function mergeTradeRow(bt, journal, hasShots){
   return {
     id: bt.id, accountId: bt.account_id, source: bt.source, externalId: bt.external_id,
     symbol: bt.symbol, direction: bt.direction, volume: num(bt.volume),
@@ -1105,8 +1105,26 @@ function mergeTradeRow(bt, journal){
     initialSlPrice: journal&&journal.initial_sl_price!=null?num(journal.initial_sl_price):null,
     plannedRiskUsd: journal&&journal.planned_risk_usd!=null?num(journal.planned_risk_usd):null,
     entryScreenshot:null, exitScreenshot:null,
-    hasJournal: !!journal,
+    hasScreenshots: !!hasShots,
+    hasJournal: journalHasContent(journal, hasShots),
   };
+}
+// A journal row can exist while being completely empty (you opened a trade and
+// hit save without typing anything). The "Notities" marker should reflect real
+// content, not the mere existence of a row.
+function journalHasContent(journal, hasShots){
+  if(hasShots) return true;
+  if(!journal) return false;
+  const filled = v => v !== null && v !== undefined && String(v).trim() !== '';
+  return filled(journal.notes)
+      || filled(journal.analysis)
+      || filled(journal.lessons_learned)
+      || filled(journal.emotion)
+      || filled(journal.setup_grade)
+      || (Array.isArray(journal.tags) && journal.tags.length > 0)
+      || journal.followed_plan === true || journal.followed_plan === false
+      || journal.initial_sl_price != null
+      || journal.planned_risk_usd != null;
 }
 function isFiniteNum(v){ return v!==null&&v!==undefined&&!isNaN(v); }
 function journalToDbRow(t){
@@ -1202,11 +1220,15 @@ async function refreshNow(){
 
 async function loadAll(){
   try{
-    const [accRes, btRes, jRes, ssRes] = await Promise.all([
+    const [accRes, btRes, jRes, ssRes, shotRes] = await Promise.all([
       supabase.from('broker_accounts').select('*').order('created_at',{ascending:true}),
       supabase.from('broker_trades').select('id,account_id,source,external_id,symbol,direction,volume,open_time,close_time,open_price,close_price,gross_pnl,commission,swap,net_pnl,initial_sl_price').order('close_time',{ascending:false}),
       supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd'),
       supabase.from('sync_state').select('*'),
+      // Which journals have screenshots — ids only, so this stays tiny. The
+      // images themselves are far too heavy to pull for every trade up front.
+      supabase.from('trade_journals').select('broker_trade_id')
+        .or('entry_screenshot.not.is.null,exit_screenshot.not.is.null'),
     ]);
     if(accRes.error) throw accRes.error;
     if(btRes.error) throw btRes.error;
@@ -1215,7 +1237,8 @@ async function loadAll(){
     accounts = (accRes.data||[]).filter(a=>a.broker_type!=='manual_legacy' || (btRes.data||[]).some(bt=>bt.account_id===a.id));
     const journalByTrade = {};
     (jRes.data||[]).forEach(j=>{ journalByTrade[j.broker_trade_id]=j; });
-    brokerTrades = (btRes.data||[]).map(bt=>mergeTradeRow(bt, journalByTrade[bt.id]));
+    const withShots = new Set(((shotRes && shotRes.data) || []).map(r=>r.broker_trade_id));
+    brokerTrades = (btRes.data||[]).map(bt=>mergeTradeRow(bt, journalByTrade[bt.id], withShots.has(bt.id)));
     syncStates = {};
     (ssRes.data||[]).forEach(s=>{ syncStates[s.account_id]=s; });
 
@@ -1559,12 +1582,50 @@ function openJournal(tradeId){
 
   $('#journalModalBg').style.display='flex';
   document.body.style.overflow='hidden';
+  journalSnapshot = journalFormState();
 }
 function closeJournal(){
   $('#journalModalBg').style.display='none';
   document.body.style.overflow='';
   editingJournalTradeId = null;
+  journalSnapshot = null;
 }
+
+// A snapshot of the form as it looked when opened, so we can tell whether
+// closing would throw away real edits.
+let journalSnapshot = null;
+function journalFormState(){
+  return JSON.stringify({
+    notes: $('#jNotes').value.trim(),
+    analysis: $('#jAnalysis').value.trim(),
+    lessons: $('#jLessons').value.trim(),
+    sl: $('#jInitialSl').value,
+    risk: $('#jPlannedRisk').value,
+    emotion: ddValue('jEmotion'),
+    grade: ddValue('jGrade'),
+    plan: ddValue('jFollowedPlan'),
+    tags: getSelectedChips('jTags').slice().sort(),
+    entry: jEntryImg || '',
+    exit: jExitImg || '',
+  });
+}
+function journalHasUnsavedChanges(){
+  return journalSnapshot !== null && journalFormState() !== journalSnapshot;
+}
+// Clicking the dark area outside the panel closes it. If you actually typed
+// something, ask first rather than silently discarding it.
+function closeJournalFromBackdrop(e){
+  if(e && e.target !== e.currentTarget) return;   // click landed inside the panel
+  if(journalHasUnsavedChanges()){
+    if(!confirm('Je hebt wijzigingen die nog niet opgeslagen zijn. Toch sluiten?')) return;
+  }
+  closeJournal();
+}
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Escape') return;
+  if($('#lightbox') && $('#lightbox').style.display === 'flex') return;  // lightbox handles its own Escape
+  if($('#journalModalBg') && $('#journalModalBg').style.display === 'flex') closeJournalFromBackdrop();
+});
 
 let jEntryImg='', jExitImg='';
 function updateJShots(){
@@ -1585,6 +1646,9 @@ async function loadJournalScreenshots(tradeId){
     jEntryImg = data.entry_screenshot || '';
     jExitImg = data.exit_screenshot || '';
     updateJShots();
+    // These arrive after the form opened, so re-baseline — otherwise their
+    // appearance would look like an edit and trigger the unsaved-changes prompt.
+    journalSnapshot = journalFormState();
   }catch(e){ /* ignore */ }
 }
 
@@ -1615,11 +1679,16 @@ async function saveJournal(){
     const { error } = await supabase.from('trade_journals').upsert(row, { onConflict:'broker_trade_id' });
     if(error) throw error;
     // update local
+    const shots = !!(payload.entryScreenshot || payload.exitScreenshot);
     Object.assign(t, {
       notes:payload.notes, analysis:payload.analysis, lessonsLearned:payload.lessonsLearned,
       emotion:payload.emotion, setupGrade:payload.setupGrade, followedPlan:payload.followedPlan,
       tags:payload.tags, initialSlPrice:payload.initialSlPrice, plannedRiskUsd:payload.plannedRiskUsd,
-      entryScreenshot:payload.entryScreenshot, exitScreenshot:payload.exitScreenshot, hasJournal:true,
+      entryScreenshot:payload.entryScreenshot, exitScreenshot:payload.exitScreenshot,
+      hasScreenshots: shots,
+      // Reflect what was actually filled in — saving an untouched form should
+      // not mark the trade as journaled.
+      hasJournal: journalHasContent(row, shots),
     });
     showToast('Journal opgeslagen ✓');
     closeJournal();
@@ -1992,6 +2061,7 @@ function initApp(){
 /* ---------- expose functions used by inline onclick ---------- */
 window.openJournal = openJournal;
 window.closeJournal = closeJournal;
+window.closeJournalFromBackdrop = closeJournalFromBackdrop;
 window.saveJournal = saveJournal;
 window.clearDateFilter = clearDateFilter;
 window.filterLogByDate = filterLogByDate;
