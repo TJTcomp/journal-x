@@ -667,6 +667,45 @@
           sync draait, verschijnt je account hier automatisch en zie je je trades in het dashboard.
         </div>
       </div>
+
+      <div class="panel" style="margin-top:8px;">
+        <h2>Trades importeren uit CSV</h2>
+        <div style="font-size:13px; color:var(--text-dim); line-height:1.7; margin-bottom:16px;">
+          Voor brokers zonder API-toegang (zoals <strong>Tradovate / Apex</strong>). Exporteer in Tradovate via
+          <strong>Reports → Performance → Download CSV</strong> en sleep het bestand hieronder.
+          <br>
+          Je mag gerust telkens je volledige geschiedenis uploaden — trades die er al in staan worden automatisch
+          overgeslagen, en je journal-notities blijven altijd behouden.
+        </div>
+
+        <div class="form-row c2" style="margin-bottom:14px;">
+          <div class="field">
+            <label>Accountnaam</label>
+            <input type="text" id="csvAccountLabel" placeholder="bv. Apex 50k eval" value="Apex (Tradovate)">
+          </div>
+          <div class="field">
+            <label>Tijdzone van de CSV-tijden</label>
+            <div class="dd" id="csvTz" data-value="-4">
+              <button type="button" class="dd-trigger"><span class="dd-label">New York / ET zomertijd (UTC−4)</span><svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <div class="dd-menu">
+                <div class="dd-option selected" data-val="-4">New York / ET zomertijd (UTC−4)</div>
+                <div class="dd-option" data-val="-5">New York / ET wintertijd (UTC−5)</div>
+                <div class="dd-option" data-val="2">Brussel zomertijd (UTC+2)</div>
+                <div class="dd-option" data-val="1">Brussel wintertijd (UTC+1)</div>
+                <div class="dd-option" data-val="0">UTC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="csvDrop" style="border:1px dashed var(--border); border-radius:10px; padding:22px; text-align:center; cursor:pointer;">
+          <span id="csvHint" style="font-size:13px; color:var(--text-faint);">Klik hier of sleep je CSV-bestand naartoe</span>
+        </div>
+        <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none;">
+
+        <div id="csvMapping" style="display:none; margin-top:18px;"></div>
+        <div id="csvPreview" style="display:none; margin-top:18px;"></div>
+      </div>
     </div>
   </div>
 
@@ -1703,6 +1742,323 @@ async function saveJournal(){
 function parseNumOrNull(v){ if(v===''||v===null||v===undefined) return null; const n=Number(v); return isNaN(n)?null:n; }
 
 /* ============================================================
+   CSV IMPORT (for brokers without API access — Tradovate/Apex)
+
+   Tradovate's Performance export has one row per round-turn trade:
+     symbol, qty, buyPrice, sellPrice, pnl, boughtTimestamp, soldTimestamp,
+     buyFillId, sellFillId, ...
+   Whether a row is long or short follows from which side happened first.
+   The two fill ids together give a stable dedup key, so re-importing the same
+   file (or an overlapping range) never creates duplicates.
+
+   Column detection is automatic but every field can be corrected by hand, so
+   an export with different headers still works.
+   ============================================================ */
+
+// RFC-4180-ish parser: handles quoted fields, embedded commas and doubled quotes.
+function parseCSV(text){
+  const rows=[]; let row=[]; let field=''; let inQuotes=false;
+  text = text.replace(/^\uFEFF/, '');           // strip BOM
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field+='"'; i++; } else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c !== '\r') field += c;
+    }
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim() !== ''));
+}
+
+// "$1,234.56", "$(31.25)", "(31.25)" and "-31.25" all become numbers.
+// Accounting exports mark negatives with brackets, and often put the currency
+// symbol OUTSIDE them ("$(31.25)"), so brackets are detected anywhere.
+function parseMoney(v){
+  if(v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if(s === '') return null;
+  const digits = s.replace(/[^0-9.\-]/g,'');
+  if(digits === '' || digits === '-' || digits === '.') return null;
+  const negative = (s.includes('(') && s.includes(')')) || digits.includes('-');
+  const n = Math.abs(parseFloat(digits.replace(/-/g,'')));
+  if(isNaN(n)) return null;
+  return negative ? -n : n;
+}
+function parseNum(v){
+  if(v === null || v === undefined) return null;
+  const s = String(v).replace(/[^0-9.\-]/g,'');
+  if(s === '' || s === '-') return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+// Times in broker exports are wall-clock in some timezone, with no zone marker.
+// We take the offset the user picked and convert to real UTC.
+function parseCsvDate(s, offsetHours){
+  if(!s) return null;
+  const str = String(s).trim();
+  let y,mo,d,h=0,mi=0,se=0;
+  let m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})[ ,T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/);
+  if(m){
+    mo=+m[1]; d=+m[2]; y=+m[3]; h=+m[4]; mi=+m[5]; se=+(m[6]||0);
+    const ap=(m[7]||'').toUpperCase();
+    if(ap==='PM' && h<12) h+=12;
+    if(ap==='AM' && h===12) h=0;
+  } else {
+    m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; h=+m[4]; mi=+m[5]; se=+(m[6]||0); }
+    else {
+      const fallback = new Date(str);
+      return isNaN(fallback.getTime()) ? null : fallback;
+    }
+  }
+  return new Date(Date.UTC(y, mo-1, d, h, mi, se) - offsetHours*3600*1000);
+}
+
+// The fields we need, with the header names brokers tend to use for them.
+const CSV_FIELDS = [
+  { key:'symbol',    label:'Instrument',      needed:true,  match:['symbol','contract','instrument','product'] },
+  { key:'qty',       label:'Aantal',          needed:true,  match:['qty','quantity','size','contracts','filledqty'] },
+  { key:'buyPrice',  label:'Koopprijs',       needed:true,  match:['buyprice','buyfillprice','entryprice','buy'] },
+  { key:'sellPrice', label:'Verkoopprijs',    needed:true,  match:['sellprice','sellfillprice','exitprice','sell'] },
+  { key:'pnl',       label:'P&L',             needed:true,  match:['pnl','p/l','profit','netpnl','grosspnl','realizedpnl','profitloss'] },
+  { key:'boughtAt',  label:'Kooptijd',        needed:true,  match:['boughttimestamp','buytime','entrytime','boughtat','timebought'] },
+  { key:'soldAt',    label:'Verkooptijd',     needed:true,  match:['soldtimestamp','selltime','exittime','soldat','timesold'] },
+  { key:'buyId',     label:'Koop-ID',         needed:false, match:['buyfillid','buyid','buyorderid'] },
+  { key:'sellId',    label:'Verkoop-ID',      needed:false, match:['sellfillid','sellid','sellorderid'] },
+  { key:'commission',label:'Commissie',       needed:false, match:['commission','fees','fee','comm','totalfees'] },
+];
+
+function normalizeHeader(h){ return String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+function autoDetectMapping(headers){
+  const norm = headers.map(normalizeHeader);
+  const map = {};
+  CSV_FIELDS.forEach(f=>{
+    let idx = -1;
+    // exact match first, then "contains", so 'buyPrice' wins over 'buy'
+    for(const cand of f.match){
+      idx = norm.indexOf(cand);
+      if(idx !== -1) break;
+    }
+    if(idx === -1){
+      for(const cand of f.match){
+        idx = norm.findIndex(h => h.includes(cand));
+        if(idx !== -1) break;
+      }
+    }
+    map[f.key] = idx;
+  });
+  return map;
+}
+
+// Stable id so the same trade is recognised across re-imports.
+function csvExternalId(cells, map){
+  const buyId = map.buyId >= 0 ? cells[map.buyId] : '';
+  const sellId = map.sellId >= 0 ? cells[map.sellId] : '';
+  if(buyId && sellId) return `${buyId}-${sellId}`;
+  // No ids in the file: derive one from the trade's own facts, which stay the
+  // same however often you export.
+  const parts = ['symbol','qty','buyPrice','sellPrice','boughtAt','soldAt']
+    .map(k => map[k] >= 0 ? String(cells[map[k]]).trim() : '').join('|');
+  let hash = 0;
+  for(let i=0;i<parts.length;i++){ hash = ((hash<<5)-hash + parts.charCodeAt(i))|0; }
+  return 'csv:' + (hash>>>0).toString(36);
+}
+
+function buildTradesFromCsv(dataRows, map, offsetHours){
+  const trades = [];
+  const problems = [];
+  dataRows.forEach((cells, i)=>{
+    const get = k => map[k] >= 0 ? cells[map[k]] : undefined;
+    const symbol = String(get('symbol')||'').trim();
+    const qty = parseNum(get('qty'));
+    const buyPrice = parseNum(get('buyPrice'));
+    const sellPrice = parseNum(get('sellPrice'));
+    const pnl = parseMoney(get('pnl'));
+    const boughtAt = parseCsvDate(get('boughtAt'), offsetHours);
+    const soldAt = parseCsvDate(get('soldAt'), offsetHours);
+
+    if(!symbol || boughtAt===null || soldAt===null || pnl===null){
+      problems.push(`Rij ${i+2}: onvolledige gegevens (instrument, tijden of P&L ontbreekt)`);
+      return;
+    }
+    // Bought first = long; sold first = short.
+    const isLong = boughtAt.getTime() <= soldAt.getTime();
+    const commission = map.commission >= 0 ? (parseMoney(get('commission')) || 0) : 0;
+    // Exports usually give P&L already net of nothing else; treat the column as
+    // gross and subtract any separately listed commission for the net figure.
+    const gross = pnl;
+    const net = gross - Math.abs(commission);
+
+    trades.push({
+      external_id: csvExternalId(cells, map),
+      symbol,
+      direction: isLong ? 'long' : 'short',
+      volume: qty || 0,
+      open_time: (isLong ? boughtAt : soldAt).toISOString(),
+      close_time: (isLong ? soldAt : boughtAt).toISOString(),
+      open_price: isLong ? buyPrice : sellPrice,
+      close_price: isLong ? sellPrice : buyPrice,
+      gross_pnl: gross,
+      commission: -Math.abs(commission),
+      swap: 0,
+      net_pnl: net,
+    });
+  });
+  return { trades, problems };
+}
+/* ---------- CSV import: UI flow ---------- */
+let csvState = { headers:[], rows:[], map:null, fileName:'' };
+
+function setupCsvImport(){
+  const drop = document.getElementById('csvDrop');
+  const input = document.getElementById('csvInput');
+  if(!drop || !input) return;
+  drop.addEventListener('click', ()=>input.click());
+  drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.style.borderColor='var(--accent)'; });
+  drop.addEventListener('dragleave', ()=>{ drop.style.borderColor='var(--border)'; });
+  drop.addEventListener('drop', e=>{
+    e.preventDefault(); drop.style.borderColor='var(--border)';
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) handleCsvFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', ()=>{ if(input.files[0]) handleCsvFile(input.files[0]); });
+}
+
+function handleCsvFile(file){
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const rows = parseCSV(e.target.result);
+    if(rows.length < 2){ showToast('Dit bestand bevat geen bruikbare rijen'); return; }
+    csvState.headers = rows[0].map(h=>String(h).trim());
+    csvState.rows = rows.slice(1);
+    csvState.map = autoDetectMapping(csvState.headers);
+    csvState.fileName = file.name;
+    document.getElementById('csvHint').textContent = `${file.name} — ${csvState.rows.length} rijen gelezen`;
+    renderCsvMapping();
+    renderCsvPreview();
+  };
+  reader.readAsText(file);
+}
+
+function renderCsvMapping(){
+  const el = document.getElementById('csvMapping');
+  if(!el) return;
+  const missing = CSV_FIELDS.filter(f=>f.needed && csvState.map[f.key] < 0);
+  const options = (sel)=> '<option value="-1">— niet aanwezig —</option>' +
+    csvState.headers.map((h,i)=>`<option value="${i}"${i===sel?' selected':''}>${h}</option>`).join('');
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="sec-label"><span style="color:var(--text-ghost);">01</span> Kolommen</div>
+    ${missing.length
+      ? `<div class="be-warn">⚠ Niet alle verplichte kolommen zijn automatisch herkend (${missing.map(m=>m.label).join(', ')}). Kies ze hieronder handmatig.</div>`
+      : `<div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">Alle kolommen automatisch herkend. Klopt er iets niet? Pas het hier aan.</div>`}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
+      ${CSV_FIELDS.map(f=>`
+        <div class="field" style="margin-bottom:0;">
+          <label>${f.label}${f.needed?'':' <span style="color:var(--text-ghost);">(optioneel)</span>'}</label>
+          <select data-csvfield="${f.key}">${options(csvState.map[f.key])}</select>
+        </div>`).join('')}
+    </div>`;
+  el.querySelectorAll('select[data-csvfield]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      csvState.map[sel.dataset.csvfield] = parseInt(sel.value,10);
+      renderCsvMapping(); renderCsvPreview();
+    });
+  });
+}
+
+function renderCsvPreview(){
+  const el = document.getElementById('csvPreview');
+  if(!el) return;
+  const offset = parseFloat(ddValue('csvTz') || '0');
+  const { trades, problems } = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  el.style.display = 'block';
+
+  if(trades.length === 0){
+    el.innerHTML = `<div class="be-warn">Geen bruikbare trades gevonden. Controleer of je het juiste tabblad exporteerde (Performance, niet Orders) en of de kolommen hierboven kloppen.</div>`;
+    return;
+  }
+  const sample = trades.slice(0,5);
+  el.innerHTML = `
+    <div class="sec-label"><span style="color:var(--text-ghost);">02</span> Controleer</div>
+    <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">
+      ${trades.length} trades gevonden. Vergelijk de tijden hieronder met wat je in Tradovate ziet — kloppen ze niet,
+      pas dan de tijdzone hierboven aan.
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <tr><th>Instrument</th><th>Richting</th><th>Aantal</th><th>Open (jouw tijd)</th><th>Sluiting</th><th>Net P&L</th></tr>
+        ${sample.map(t=>`<tr>
+          <td style="font-weight:600;">${t.symbol}</td>
+          <td style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'};">${t.direction==='long'?'Long':'Short'}</td>
+          <td style="color:var(--text-dim);">${t.volume}</td>
+          <td>${fmtDateTime(t.open_time)}</td>
+          <td>${fmtDateTime(t.close_time)}</td>
+          <td style="font-weight:700; color:${t.net_pnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.net_pnl)}</td>
+        </tr>`).join('')}
+      </table>
+    </div>
+    ${trades.length>5?`<div style="font-size:11px; color:var(--text-faint); margin-top:6px;">…en nog ${trades.length-5} andere.</div>`:''}
+    ${problems.length?`<div class="be-warn" style="margin-top:10px;">${problems.length} rij(en) overgeslagen:<br>${problems.slice(0,4).join('<br>')}${problems.length>4?'<br>…':''}</div>`:''}
+    <button type="button" class="btn" id="csvImportBtn" style="margin-top:14px;" onclick="doCsvImport()">Importeer ${trades.length} trades</button>`;
+}
+
+async function doCsvImport(){
+  const btn = document.getElementById('csvImportBtn');
+  const label = (document.getElementById('csvAccountLabel').value || 'Tradovate').trim();
+  const offset = parseFloat(ddValue('csvTz') || '0');
+  const { trades } = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  if(!trades.length) return;
+  if(btn){ btn.disabled = true; btn.textContent = 'Importeren…'; }
+
+  try{
+    const userId = (await supabase.auth.getUser()).data.user.id;
+
+    // Find the account for this label, or create it.
+    let account = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
+    if(!account){
+      const { data, error } = await supabase.from('broker_accounts').insert({
+        user_id: userId, broker_type:'tradovate', account_label: label,
+        external_account_id: 'csv:'+label, account_currency:'USD', connection_status:'connected',
+      }).select().single();
+      if(error) throw error;
+      account = data;
+    }
+
+    // Upsert with ignore-duplicates: re-importing the same file is harmless,
+    // and existing journal notes are never touched (they live in another table).
+    const rows = trades.map(t => ({ ...t, user_id:userId, account_id:account.id, source:'tradovate' }));
+    const before = brokerTrades.filter(t=>t.accountId===account.id).length;
+    for(let i=0;i<rows.length;i+=200){
+      const { error } = await supabase.from('broker_trades')
+        .upsert(rows.slice(i,i+200), { onConflict:'account_id,external_id', ignoreDuplicates:true });
+      if(error) throw error;
+    }
+
+    await loadAll();
+    const after = brokerTrades.filter(t=>t.accountId===account.id).length;
+    const added = after - before;
+    showToast(added>0 ? `${added} nieuwe trade${added>1?'s':''} geïmporteerd ✓` : 'Geen nieuwe trades — alles stond er al in');
+    document.getElementById('csvMapping').style.display='none';
+    document.getElementById('csvPreview').style.display='none';
+    document.getElementById('csvHint').textContent='Klik hier of sleep je CSV-bestand naartoe';
+    document.getElementById('csvInput').value='';
+  }catch(e){
+    console.error('CSV import failed', e);
+    showToast('Import mislukt: ' + (e.message||''));
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Importeer trades'; }
+  }
+}
+
+/* ============================================================
    AI COACH VIEW
    ============================================================ */
 function renderCoach(){
@@ -2053,6 +2409,14 @@ function initApp(){
   initChips();
   setupJournalUpload('jEntryDrop','jEntryInput','entry');
   setupJournalUpload('jExitDrop','jExitInput','exit');
+  setupCsvImport();
+  // Changing the timezone should immediately re-show the converted times.
+  const tzDd = document.getElementById('csvTz');
+  if(tzDd){
+    tzDd.querySelectorAll('.dd-option').forEach(o=>o.addEventListener('click', ()=>{
+      if(csvState.rows.length) setTimeout(renderCsvPreview, 0);
+    }));
+  }
   // Filter listeners
   ['fSymbol','fOutcome','fJournal'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', renderLog); });
   const fs=$('#fSearch'); if(fs) fs.addEventListener('input', renderLog);
@@ -2070,6 +2434,7 @@ window.calNext = calNext;
 window.copyCoachContext = copyCoachContext;
 window.saveBeThreshold = saveBeThreshold;
 window.saveDefaultRisk = saveDefaultRisk;
+window.doCsvImport = doCsvImport;
 window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
 window.refreshNow = refreshNow;
