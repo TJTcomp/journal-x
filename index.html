@@ -703,6 +703,17 @@
         </div>
         <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none;">
 
+        <label class="checkfield" style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer;">
+          <input type="checkbox" id="csvMergeScaleOuts" checked>
+          <span style="font-size:12.5px; color:var(--text-dim);">
+            Deelafsluitingen samenvoegen tot één trade
+            <span style="display:block; font-size:11px; color:var(--text-faint);">
+              Neem je winst in stukken (bv. een extra limit-order als tweede target)? Dan rapporteert je broker
+              elk stuk apart. Aangevinkt telt dat als één trade — anders lijken je aantallen en win rate hoger dan ze zijn.
+            </span>
+          </span>
+        </label>
+
         <div id="csvMapping" style="display:none; margin-top:18px;"></div>
         <div id="csvPreview" style="display:none; margin-top:18px;"></div>
       </div>
@@ -845,7 +856,17 @@ const $$ = s => document.querySelectorAll(s);
 let brokerTrades = [];    // merged broker_trades + journals (the "trade" view)
 let accounts = [];        // broker_accounts
 let syncStates = {};      // account_id -> sync_state row
-let activeAccountId = 'all';   // 'all' or a specific account id
+// Which account the dashboard is filtered to. Remembered between visits: most
+// people trade one account at a time, so re-picking it on every visit is noise.
+const ACTIVE_ACCOUNT_KEY = 'journalx.activeAccount';
+let activeAccountId = (()=>{
+  try { return localStorage.getItem(ACTIVE_ACCOUNT_KEY) || 'all'; }
+  catch(e){ return 'all'; }   // private mode / storage disabled
+})();
+function setActiveAccount(id){
+  activeAccountId = id;
+  try { localStorage.setItem(ACTIVE_ACCOUNT_KEY, id); } catch(e){ /* not fatal */ }
+}
 let editingJournalTradeId = null;
 let charts = {};
 
@@ -1349,6 +1370,10 @@ function renderAccountPicker(){
   const el = $('#accountPicker');
   if(!el) return;
   if(accounts.length===0){ el.innerHTML=''; el.style.display='none'; return; }
+  // The remembered account may have been removed since last visit.
+  if(activeAccountId !== 'all' && !accounts.some(a=>a.id===activeAccountId)){
+    setActiveAccount('all');
+  }
   el.style.display='flex';
   const chip = (id, label, sub)=>{
     const active = activeAccountId===id;
@@ -1362,7 +1387,7 @@ function renderAccountPicker(){
   });
   el.innerHTML = html;
   el.querySelectorAll('.acct-chip').forEach(c=> c.addEventListener('click', ()=>{
-    activeAccountId = c.dataset.acct;
+    setActiveAccount(c.dataset.acct);
     renderAccountPicker(); renderDashboard(); renderLog(); renderCoach();
   }));
 }
@@ -1892,13 +1917,17 @@ function buildTradesFromCsv(dataRows, map, offsetHours){
     // Bought first = long; sold first = short.
     const isLong = boughtAt.getTime() <= soldAt.getTime();
     const commission = map.commission >= 0 ? (parseMoney(get('commission')) || 0) : 0;
-    // Exports usually give P&L already net of nothing else; treat the column as
-    // gross and subtract any separately listed commission for the net figure.
     const gross = pnl;
     const net = gross - Math.abs(commission);
+    // The fill that OPENED the position — a long opens on the buy, a short on
+    // the sell. Scale-outs share this id, which is how we spot them later.
+    const entryId = isLong
+      ? (map.buyId  >= 0 ? String(cells[map.buyId]  || '').trim() : '')
+      : (map.sellId >= 0 ? String(cells[map.sellId] || '').trim() : '');
 
     trades.push({
       external_id: csvExternalId(cells, map),
+      _entryId: entryId,
       symbol,
       direction: isLong ? 'long' : 'short',
       volume: qty || 0,
@@ -1914,8 +1943,91 @@ function buildTradesFromCsv(dataRows, map, offsetHours){
   });
   return { trades, problems };
 }
+
+/* ---------- Scale-outs: one position, several exit rows ----------
+   Taking partial profits (a limit sell for a second target, say) makes the
+   broker report one row per exit. Left alone those look like separate trades,
+   which quietly inflates your trade count and distorts win rate, average win
+   and R-multiple. So we merge rows that belong to the same position.
+
+   Two rows belong together when they're the same symbol and direction AND
+   either they share the opening fill, or their open/close windows overlap —
+   because a position can't be exited before it was entered. */
+function mergeScaleOuts(trades){
+  const groups = new Map();
+  trades.forEach(t=>{ 
+    const k = t.symbol + '|' + t.direction;
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(t);
+  });
+
+  const merged = [];
+  groups.forEach(list=>{
+    list.sort((a,b)=> new Date(a.open_time) - new Date(b.open_time));
+    let cluster = [];
+    let clusterEnd = null;
+
+    const flush = ()=>{ if(cluster.length) merged.push(combineCluster(cluster)); cluster=[]; clusterEnd=null; };
+
+    list.forEach(t=>{
+      const openMs = new Date(t.open_time).getTime();
+      const closeMs = new Date(t.close_time).getTime();
+      const sharesEntry = cluster.length && t._entryId &&
+                          cluster.some(c => c._entryId && c._entryId === t._entryId);
+      // Strictly "before", so a new position opened exactly when the previous
+      // one closed stays a separate trade.
+      const overlaps = clusterEnd !== null && openMs < clusterEnd;
+      if(cluster.length && !(sharesEntry || overlaps)) flush();
+      cluster.push(t);
+      clusterEnd = clusterEnd === null ? closeMs : Math.max(clusterEnd, closeMs);
+    });
+    flush();
+  });
+
+  merged.sort((a,b)=> new Date(b.close_time) - new Date(a.close_time));
+  return merged;
+}
+
+function combineCluster(cluster){
+  if(cluster.length === 1){
+    const t = { ...cluster[0] };
+    delete t._entryId;
+    return t;
+  }
+  const totalVol = cluster.reduce((s,t)=> s + (t.volume||0), 0);
+  const wAvg = pick => {
+    const vol = totalVol > 0 ? totalVol : cluster.length;
+    return cluster.reduce((s,t)=> s + (pick(t)||0) * (totalVol>0 ? (t.volume||0) : 1), 0) / vol;
+  };
+  const first = cluster.reduce((a,b)=> new Date(a.open_time) <= new Date(b.open_time) ? a : b);
+  // Anchor the id on the opening fill so that re-importing later — once more
+  // exits are known — updates the same trade instead of creating a new one.
+  const anchor = first._entryId ? 'pos:'+first._entryId : 'pos:'+first.external_id;
+
+  return {
+    external_id: anchor,
+    symbol: first.symbol,
+    direction: first.direction,
+    volume: Math.round(totalVol * 10000) / 10000,
+    open_time: cluster.reduce((a,t)=> a < t.open_time ? a : t.open_time, cluster[0].open_time),
+    close_time: cluster.reduce((a,t)=> a > t.close_time ? a : t.close_time, cluster[0].close_time),
+    open_price: wAvg(t=>t.open_price),
+    close_price: wAvg(t=>t.close_price),
+    gross_pnl: cluster.reduce((s,t)=> s + (t.gross_pnl||0), 0),
+    commission: cluster.reduce((s,t)=> s + (t.commission||0), 0),
+    swap: 0,
+    net_pnl: cluster.reduce((s,t)=> s + (t.net_pnl||0), 0),
+  };
+}
 /* ---------- CSV import: UI flow ---------- */
 let csvState = { headers:[], rows:[], map:null, fileName:'' };
+
+function csvMergeEnabled(){
+  const el = document.getElementById('csvMergeScaleOuts');
+  return el ? el.checked : true;
+}
+// Internal bookkeeping fields must never reach the database.
+function stripInternal(t){ const c = { ...t }; delete c._entryId; return c; }
 
 function setupCsvImport(){
   const drop = document.getElementById('csvDrop');
@@ -1978,7 +2090,10 @@ function renderCsvPreview(){
   const el = document.getElementById('csvPreview');
   if(!el) return;
   const offset = parseFloat(ddValue('csvTz') || '0');
-  const { trades, problems } = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  const problems = raw.problems;
+  const trades = csvMergeEnabled() ? mergeScaleOuts(raw.trades) : raw.trades.map(stripInternal);
+  const mergedAway = raw.trades.length - trades.length;
   el.style.display = 'block';
 
   if(trades.length === 0){
@@ -1991,6 +2106,7 @@ function renderCsvPreview(){
     <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">
       ${trades.length} trades gevonden. Vergelijk de tijden hieronder met wat je in Tradovate ziet — kloppen ze niet,
       pas dan de tijdzone hierboven aan.
+      ${mergedAway > 0 ? `<br><span style="color:var(--accent-bright);">${raw.trades.length} rijen samengevoegd tot ${trades.length} trades (${mergedAway} deelafsluiting${mergedAway>1?'en':''}).</span>` : ''}
     </div>
     <div style="overflow-x:auto;">
       <table>
@@ -2014,7 +2130,8 @@ async function doCsvImport(){
   const btn = document.getElementById('csvImportBtn');
   const label = (document.getElementById('csvAccountLabel').value || 'Tradovate').trim();
   const offset = parseFloat(ddValue('csvTz') || '0');
-  const { trades } = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  const trades = csvMergeEnabled() ? mergeScaleOuts(raw.trades) : raw.trades.map(stripInternal);
   if(!trades.length) return;
   if(btn){ btn.disabled = true; btn.textContent = 'Importeren…'; }
 
@@ -2032,13 +2149,15 @@ async function doCsvImport(){
       account = data;
     }
 
-    // Upsert with ignore-duplicates: re-importing the same file is harmless,
-    // and existing journal notes are never touched (they live in another table).
+    // Upsert on (account, external_id). We MERGE rather than ignore: a position
+    // exited in stages can gain further exits in a later export, and the merged
+    // trade must then be corrected. Refreshing broker facts is safe — your notes
+    // live in trade_journals and are never part of this write.
     const rows = trades.map(t => ({ ...t, user_id:userId, account_id:account.id, source:'tradovate' }));
     const before = brokerTrades.filter(t=>t.accountId===account.id).length;
     for(let i=0;i<rows.length;i+=200){
       const { error } = await supabase.from('broker_trades')
-        .upsert(rows.slice(i,i+200), { onConflict:'account_id,external_id', ignoreDuplicates:true });
+        .upsert(rows.slice(i,i+200), { onConflict:'account_id,external_id' });
       if(error) throw error;
     }
 
@@ -2417,6 +2536,8 @@ function initApp(){
       if(csvState.rows.length) setTimeout(renderCsvPreview, 0);
     }));
   }
+  const mergeToggle = document.getElementById('csvMergeScaleOuts');
+  if(mergeToggle) mergeToggle.addEventListener('change', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
   // Filter listeners
   ['fSymbol','fOutcome','fJournal'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', renderLog); });
   const fs=$('#fSearch'); if(fs) fs.addEventListener('input', renderLog);
