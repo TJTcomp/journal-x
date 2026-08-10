@@ -2270,9 +2270,25 @@ function renderAccountsView(){
           ${ss && ss.last_sync_status && ss.last_sync_status!=='ok' ? `<span style="color:var(--neg);"> — ${ss.last_sync_status}</span>`:''}
         </div>
         <div class="be-setting">
+          <div class="be-setting-head">Accountbalans</div>
+          ${a.broker_type === 'mt5'
+            ? `<div class="be-setting-desc">Wordt automatisch uitgelezen uit MetaTrader bij elke sync.${a.balance?` Nu: <strong>${fmtMoney(Number(a.balance))}</strong>.`:''}</div>`
+            : `<div class="be-setting-desc">Een CSV-export bevat je balans niet, dus vul die hier zelf in. Zonder balans kunnen de
+                 percentage-instellingen hieronder niet berekend worden.</div>
+               <div class="be-setting-row">
+                 <label>Balans ($)</label>
+                 <input type="number" step="0.01" min="0" id="bal-${a.id}" value="${a.balance ?? ''}" placeholder="bv. 100000" style="width:140px;">
+                 <button type="button" class="btn secondary small" onclick="saveAccountBalance('${a.id}')">Opslaan</button>
+               </div>`}
+        </div>
+        <div class="be-setting">
           <div class="be-setting-head">Breakeven-drempel</div>
           <div class="be-setting-desc">Trades met een resultaat binnen deze marge tellen als <strong>BE</strong>, niet als win of loss.</div>
-          ${beThresholdMissing(a.id) ? `<div class="be-warn">⚠ Nog geen accountbalans gesynct — de %-drempel kan niet berekend worden. Vul hieronder een <strong>vast bedrag</strong> in, of herstart de sync-service zodat de balans wordt opgehaald.</div>` : ''}
+          ${beThresholdMissing(a.id)
+            ? `<div class="be-warn">⚠ ${a.broker_type==='mt5'
+                ? 'Nog geen accountbalans gesynct — herstart de sync-service, of vul hieronder een <strong>vast bedrag</strong> in.'
+                : 'Vul hierboven je <strong>accountbalans</strong> in, of gebruik hieronder een <strong>vast bedrag</strong>.'}</div>`
+            : ''}
           <div class="be-setting-row">
             <label>% van balans</label>
             <input type="number" step="0.01" min="0" id="bePct-${a.id}" value="${a.be_threshold_pct ?? DEFAULT_BE_PCT}" style="width:80px;">
@@ -2304,6 +2320,26 @@ function renderAccountsView(){
     </div>`;
   });
   el.innerHTML = html;
+}
+
+// Balance for accounts we can't read it from (CSV imports). Percentage-based
+// settings depend on it, so entering it makes those work.
+async function saveAccountBalance(accountId){
+  const el = document.getElementById('bal-'+accountId);
+  const val = el && el.value!=='' ? Number(el.value) : null;
+  if(val !== null && (isNaN(val) || val < 0)){ showToast('Vul een geldig bedrag in'); return; }
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ balance: val }).eq('id', accountId);
+    if(error) throw error;
+    const acc = accounts.find(a=>a.id===accountId);
+    if(acc) acc.balance = val;
+    showToast('Balans opgeslagen ✓');
+    renderAccountsView(); renderDashboard(); renderLog(); renderCoach();
+  }catch(e){
+    console.error('balance save failed', e);
+    showToast('Opslaan mislukt: ' + (e.message||''));
+  }
 }
 
 // Persist the account's default risk-per-trade, used when a trade's stop left no trace.
@@ -2555,6 +2591,7 @@ window.calNext = calNext;
 window.copyCoachContext = copyCoachContext;
 window.saveBeThreshold = saveBeThreshold;
 window.saveDefaultRisk = saveDefaultRisk;
+window.saveAccountBalance = saveAccountBalance;
 window.doCsvImport = doCsvImport;
 window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
