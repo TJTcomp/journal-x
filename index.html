@@ -566,6 +566,7 @@
     </div>
     <div class="view-body">
       <div id="accountPicker"></div>
+      <div id="excludedBanner" class="be-warn" style="display:none; margin-bottom:16px;"></div>
 
       <div class="section-head"><h3>Performance</h3><div class="rule"></div></div>
       <div class="kpi-grid" id="kpiGrid"></div>
@@ -621,7 +622,7 @@
       <div class="filterbar">
         <select id="fSymbol"><option value="">Alle instrumenten</option></select>
         <select id="fOutcome"><option value="">Alle resultaten</option><option value="Win">Win</option><option value="Loss">Loss</option><option value="BE">Breakeven</option></select>
-        <select id="fJournal"><option value="">Journal: alle</option><option value="yes">Met notities</option><option value="no">Zonder notities</option></select>
+        <select id="fJournal"><option value="">Journal: alle</option><option value="yes">Met notities</option><option value="no">Zonder notities</option><option value="excluded">Uitgesloten trades</option></select>
         <input type="text" id="fSearch" placeholder="Zoek in notities/tags…" style="flex:1; min-width:140px;">
       </div>
       <div id="dateFilterChip" style="display:none; margin-bottom:12px;"></div>
@@ -782,14 +783,34 @@
 
     <div class="field" style="margin-bottom:14px;"><label>Lessons learned</label><textarea id="jLessons" placeholder="Wat neem je hieruit mee?"></textarea></div>
 
-    <div class="sec-label"><span style="color:var(--text-ghost);">03</span> Risk (optioneel — override)</div>
+    <div class="sec-label"><span style="color:var(--text-ghost);">03</span> Meetellen in statistieken</div>
+    <label class="checkfield" style="display:flex; align-items:flex-start; gap:9px; cursor:pointer; margin-bottom:10px;">
+      <input type="checkbox" id="jExcluded" style="margin-top:3px;">
+      <span style="font-size:12.5px; color:var(--text-dim);">
+        Sluit deze trade uit van mijn strategie-statistieken
+        <span style="display:block; font-size:11px; color:var(--text-faint); margin-top:2px;">
+          Voor trades die je strategie niet vertegenwoordigen — een experiment, een gok op nieuws, een test.
+          De trade blijft in je log staan en telt gewoon mee in je werkelijke resultaat; enkel je win rate,
+          profit factor en setup-analyse negeren hem.
+        </span>
+      </span>
+    </label>
+    <div class="field" id="jExcludeReasonWrap" style="display:none; margin-bottom:14px;">
+      <label>Waarom telt deze niet mee? <span style="color:var(--text-ghost);">(verplicht)</span></label>
+      <input type="text" id="jExcludeReason" placeholder="bv. experiment op CPI-nieuws, niet mijn normale setup">
+      <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">
+        Een reden opschrijven houdt je eerlijk: het verschil tussen een uitzondering en een verliezer die je liever niet ziet.
+      </div>
+    </div>
+
+    <div class="sec-label"><span style="color:var(--text-ghost);">04</span> Risk (optioneel — override)</div>
     <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">Je stop loss wordt <strong>automatisch uit MT5 gehaald</strong> en je R-multiple daaruit berekend — je hoeft hier normaal niets in te vullen. Enkel invullen als MT5 geen stop had (bv. handmatig gesloten zonder SL), of als je de berekening wil overrulen.</div>
     <div class="form-row c2" style="margin-bottom:20px;">
       <div class="field"><label>Initiële SL-prijs</label><input type="number" step="any" id="jInitialSl" placeholder="bv. 17980"></div>
       <div class="field"><label>Of: gepland risico ($)</label><input type="number" step="any" id="jPlannedRisk" placeholder="bv. 100"></div>
     </div>
 
-    <div class="sec-label"><span style="color:var(--text-ghost);">04</span> Screenshots</div>
+    <div class="sec-label"><span style="color:var(--text-ghost);">05</span> Screenshots</div>
     <div class="form-row c2" style="margin-bottom:20px;">
       <div class="field">
         <label>Entry</label>
@@ -1164,6 +1185,8 @@ function mergeTradeRow(bt, journal, hasShots){
     followedPlan: journal?journal.followed_plan:null,
     initialSlPrice: journal&&journal.initial_sl_price!=null?num(journal.initial_sl_price):null,
     plannedRiskUsd: journal&&journal.planned_risk_usd!=null?num(journal.planned_risk_usd):null,
+    excluded: !!(journal && journal.excluded),
+    excludeReason: journal ? (journal.exclude_reason||'') : '',
     entryScreenshot:null, exitScreenshot:null,
     hasScreenshots: !!hasShots,
     hasJournal: journalHasContent(journal, hasShots),
@@ -1184,7 +1207,8 @@ function journalHasContent(journal, hasShots){
       || (Array.isArray(journal.tags) && journal.tags.length > 0)
       || journal.followed_plan === true || journal.followed_plan === false
       || journal.initial_sl_price != null
-      || journal.planned_risk_usd != null;
+      || journal.planned_risk_usd != null
+      || journal.excluded === true;
 }
 function isFiniteNum(v){ return v!==null&&v!==undefined&&!isNaN(v); }
 function journalToDbRow(t){
@@ -1195,14 +1219,27 @@ function journalToDbRow(t){
     followed_plan: t.followedPlan===null||t.followedPlan===undefined?null:!!t.followedPlan,
     initial_sl_price: isFiniteNum(t.initialSlPrice)?t.initialSlPrice:null,
     planned_risk_usd: isFiniteNum(t.plannedRiskUsd)?t.plannedRiskUsd:null,
+    excluded: !!t.excluded,
+    exclude_reason: t.excluded ? (t.excludeReason||null) : null,
     entry_screenshot: t.entryScreenshot||null, exit_screenshot: t.exitScreenshot||null,
   };
 }
 
 // The currently-filtered trade set (by active account).
+// Every trade for the selected account — this is what your account ACTUALLY did,
+// excluded trades included. Used for the real balance/P&L figure.
 function activeTrades(){
   if(activeAccountId==='all') return brokerTrades;
   return brokerTrades.filter(t=>t.accountId===activeAccountId);
+}
+// The subset your strategy KPIs are built on. Trades you marked as not
+// representative (an experiment, a news gamble) are left out here — but they are
+// never hidden or deleted, and they still count towards your real P&L above.
+function strategyTrades(){
+  return activeTrades().filter(t=>!t.excluded);
+}
+function excludedTrades(){
+  return activeTrades().filter(t=>t.excluded);
 }
 
 /* ---------- AUTO-REFRESH ----------
@@ -1283,7 +1320,7 @@ async function loadAll(){
     const [accRes, btRes, jRes, ssRes, shotRes] = await Promise.all([
       supabase.from('broker_accounts').select('*').order('created_at',{ascending:true}),
       supabase.from('broker_trades').select('id,account_id,source,external_id,symbol,direction,volume,open_time,close_time,open_price,close_price,gross_pnl,commission,swap,net_pnl,initial_sl_price').order('close_time',{ascending:false}),
-      supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd'),
+      supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd,excluded,exclude_reason'),
       supabase.from('sync_state').select('*'),
       // Which journals have screenshots — ids only, so this stays tiny. The
       // images themselves are far too heavy to pull for every trade up front.
@@ -1396,13 +1433,30 @@ function renderAccountPicker(){
    DASHBOARD
    ============================================================ */
 function renderDashboard(){
-  const list = activeTrades();
+  const all = activeTrades();          // what the account really did
+  const list = strategyTrades();       // what your strategy did
+  const excluded = excludedTrades();
   const s = computeStats(list);
+  const sAll = computeStats(all);
   const dd = computeMaxDrawdown(list);
   const streaks = computeStreaks(list);
   const holding = computeAvgHoldingMs(list);
   const days = computeDayExtremes(list);
   const rStats = computeRStats(list);
+
+  // When trades are excluded, say so plainly and keep the real number in view.
+  // Analysis you can quietly flatter yourself with is worse than no analysis.
+  const banner = $('#excludedBanner');
+  if(banner){
+    if(excluded.length){
+      const excludedPnl = excluded.reduce((a,t)=>a+t.netPnl,0);
+      banner.style.display='block';
+      banner.innerHTML = `<strong>${excluded.length} trade${excluded.length>1?'s':''} uitgesloten</strong> van de statistieken hieronder
+        (${fmtMoneySigned(excludedPnl)}). Je werkelijke resultaat op deze account is
+        <strong style="color:${sAll.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(sAll.netPnl)}</strong>
+        over ${sAll.n} trades. <span style="color:var(--text-faint);">De cijfers hieronder tonen enkel je normale strategie.</span>`;
+    } else banner.style.display='none';
+  }
 
   // ---- Primary KPI grid (money) ----
   const kpi = (label, value, cls, sub)=>`<div class="kpi"><div class="label">${label}</div><div class="value ${cls||'neutral'}">${value}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
@@ -1559,6 +1613,7 @@ function renderLog(){
     if(fOutcome && outcomeOf(t)!==fOutcome) return false;
     if(fJournal==='yes' && !t.hasJournal) return false;
     if(fJournal==='no' && t.hasJournal) return false;
+    if(fJournal==='excluded' && !t.excluded) return false;
     if(fSearch && !((t.notes||'')+' '+(t.tags||[]).join(' ')).toLowerCase().includes(fSearch)) return false;
     return true;
   });
@@ -1572,9 +1627,9 @@ function renderLog(){
   filtered.forEach(t=>{
     const o = outcomeOf(t);
     const r = rMultipleOf(t);
-    html += `<tr style="cursor:pointer" onclick="openJournal('${t.id}')">
+    html += `<tr style="cursor:pointer${t.excluded?'; opacity:0.55':''}" onclick="openJournal('${t.id}')"${t.excluded&&t.excludeReason?` title="Uitgesloten: ${t.excludeReason.replace(/"/g,'&quot;')}"`:''}>
       <td>${fmtDateTime(t.closeTime)}</td>
-      <td style="font-weight:600;">${t.symbol}</td>
+      <td style="font-weight:600;">${t.symbol}${t.excluded?' <span class="tag" style="font-size:9px; vertical-align:middle;">excl.</span>':''}</td>
       <td><span style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'}; font-weight:600;">${t.direction==='long'?'Long':'Short'}</span></td>
       <td style="color:var(--text-dim);">${t.volume}</td>
       <td style="font-weight:700; color:${t.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.netPnl)}</td>
@@ -1632,6 +1687,9 @@ function openJournal(tradeId){
   $('#jLessons').value = t.lessonsLearned || '';
   $('#jInitialSl').value = t.initialSlPrice ?? '';
   $('#jPlannedRisk').value = t.plannedRiskUsd ?? '';
+  $('#jExcluded').checked = !!t.excluded;
+  $('#jExcludeReason').value = t.excludeReason || '';
+  updateExcludeReasonVisibility();
   ddSetValue('jEmotion', t.emotion || '');
   ddSetValue('jGrade', t.setupGrade || '');
   ddSetValue('jFollowedPlan', t.followedPlan===true?'yes':t.followedPlan===false?'no':'');
@@ -1648,6 +1706,11 @@ function openJournal(tradeId){
   document.body.style.overflow='hidden';
   journalSnapshot = journalFormState();
 }
+function updateExcludeReasonVisibility(){
+  const wrap = $('#jExcludeReasonWrap');
+  if(wrap) wrap.style.display = $('#jExcluded').checked ? 'block' : 'none';
+}
+
 function closeJournal(){
   $('#journalModalBg').style.display='none';
   document.body.style.overflow='';
@@ -1669,6 +1732,8 @@ function journalFormState(){
     grade: ddValue('jGrade'),
     plan: ddValue('jFollowedPlan'),
     tags: getSelectedChips('jTags').slice().sort(),
+    excluded: $('#jExcluded').checked,
+    excludeReason: $('#jExcludeReason').value.trim(),
     entry: jEntryImg || '',
     exit: jExitImg || '',
   });
@@ -1722,6 +1787,14 @@ async function saveJournal(){
   const btn = $('#saveJournalBtn'); btn.disabled=true; btn.textContent='Opslaan…';
 
   const fp = ddValue('jFollowedPlan');
+  const excluded = $('#jExcluded').checked;
+  const excludeReason = $('#jExcludeReason').value.trim();
+  if(excluded && !excludeReason){
+    showToast('Vul een reden in waarom deze trade niet meetelt');
+    $('#jExcludeReason').focus();
+    return;
+  }
+
   const payload = {
     notes: $('#jNotes').value.trim(),
     analysis: $('#jAnalysis').value.trim(),
@@ -1732,6 +1805,8 @@ async function saveJournal(){
     tags: getSelectedChips('jTags'),
     initialSlPrice: parseNumOrNull($('#jInitialSl').value),
     plannedRiskUsd: parseNumOrNull($('#jPlannedRisk').value),
+    excluded,
+    excludeReason,
     entryScreenshot: jEntryImg || null,
     exitScreenshot: jExitImg || null,
     id: t.id,
@@ -1748,6 +1823,7 @@ async function saveJournal(){
       notes:payload.notes, analysis:payload.analysis, lessonsLearned:payload.lessonsLearned,
       emotion:payload.emotion, setupGrade:payload.setupGrade, followedPlan:payload.followedPlan,
       tags:payload.tags, initialSlPrice:payload.initialSlPrice, plannedRiskUsd:payload.plannedRiskUsd,
+      excluded:payload.excluded, excludeReason:payload.excludeReason,
       entryScreenshot:payload.entryScreenshot, exitScreenshot:payload.exitScreenshot,
       hasScreenshots: shots,
       // Reflect what was actually filled in — saving an untouched form should
@@ -2181,7 +2257,9 @@ async function doCsvImport(){
    AI COACH VIEW
    ============================================================ */
 function renderCoach(){
-  const list = activeTrades();
+  // Pattern-finding must run on representative trades only — one experimental
+  // blow-up would otherwise drown out every real signal.
+  const list = strategyTrades();
   const el = $('#coachInsights');
   if(!el) return;
   const res = generateInsights(list);
@@ -2221,7 +2299,7 @@ function coachCard(e, positive){
 
 // Export-for-AI: copies a compact context + question for pasting into claude.ai
 function copyCoachContext(){
-  const list = activeTrades();
+  const list = strategyTrades();
   const s = computeStats(list);
   const res = generateInsights(list);
   const lines = [];
@@ -2574,6 +2652,8 @@ function initApp(){
   }
   const mergeToggle = document.getElementById('csvMergeScaleOuts');
   if(mergeToggle) mergeToggle.addEventListener('change', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
+  const exclToggle = document.getElementById('jExcluded');
+  if(exclToggle) exclToggle.addEventListener('change', updateExcludeReasonVisibility);
   // Filter listeners
   ['fSymbol','fOutcome','fJournal'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', renderLog); });
   const fs=$('#fSearch'); if(fs) fs.addEventListener('input', renderLog);
