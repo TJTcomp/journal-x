@@ -580,6 +580,24 @@
       </div>
 
       <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <h2 style="margin:0;">Win Rate over tijd</h2>
+          <div class="multiselect" id="wrWindow" data-single="true" style="margin:0;">
+            <div class="chip" data-val="10">10 trades</div>
+            <div class="chip selected" data-val="20">20 trades</div>
+            <div class="chip" data-val="50">50 trades</div>
+          </div>
+        </div>
+        <div class="desc">
+          Voortschrijdende win rate over je laatste trades. Een cumulatieve win rate wordt na verloop van tijd
+          bijna vlak en zegt weinig — dit laat zien of je de <em>laatste tijd</em> beter of slechter presteert
+          dan je gemiddelde (de stippellijn). Breakeven-trades tellen niet mee, net als in je KPI's.
+        </div>
+        <div style="height:240px;"><canvas id="winrateChart"></canvas></div>
+        <div id="winrateNote" style="font-size:11.5px; color:var(--text-faint); margin-top:8px;"></div>
+      </div>
+
+      <div class="panel">
         <h2>Consistentie · Streaks</h2>
         <div id="streakGrid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:12px; overflow:hidden;"></div>
       </div>
@@ -1514,7 +1532,8 @@ function renderDashboard(){
   }
 
   if(list.length===0){
-    ['equityChart'].forEach(id=>{ if(charts[id]){charts[id].destroy(); delete charts[id];} });
+    ['equityChart','winrateChart'].forEach(id=>{ if(charts[id]){charts[id].destroy(); delete charts[id];} });
+    const wrNote = $('#winrateNote'); if(wrNote) wrNote.textContent='';
     ['symbolTable','sessionTable','weekdayTable','gradeTable','tagTable','emotionTable','directionTable','accountTable'].forEach(id=>{ const e=$('#'+id); if(e) e.innerHTML=emptyRow(); });
     renderCalendar();
     return;
@@ -1525,6 +1544,7 @@ function renderDashboard(){
   let cum=0; const labels=[], data=[];
   chrono.forEach(t=>{ cum+=t.netPnl; labels.push(fmtDate(t.closeTime)); data.push(cum.toFixed(2)); });
   renderLineChart('equityChart', labels, data);
+  renderWinRateChart(list);
 
   // ---- Breakdowns ----
   renderMoneyBreakdown('symbolTable', groupBy(list, t=>t.symbol));
@@ -1585,6 +1605,102 @@ function labelFor(elId){
 }
 function prettyKey(k){ if(k==='long') return 'Long'; if(k==='short') return 'Short'; return k; }
 function emptyRow(){ return `<tr><td style="color:var(--text-faint); padding:16px 0;">Nog geen trades — koppel je MT5 account.</td></tr>`; }
+
+/* ---------- Rolling win rate ----------
+   A cumulative win rate flattens out and stops telling you anything. What's
+   actually useful is recent form: how you've done over your last N decided
+   trades, plotted against your overall average. Breakeven trades are skipped
+   here for the same reason they're excluded from the win-rate KPI — they aren't
+   a verdict either way. */
+function computeRollingWinRate(list, windowSize){
+  const decided = [...list]
+    .filter(t=>{ const o = outcomeOf(t); return o==='Win' || o==='Loss'; })
+    .sort(byCloseTime);
+  if(decided.length < windowSize) return { points: [], decided };
+
+  const points = [];
+  for(let i = windowSize - 1; i < decided.length; i++){
+    const slice = decided.slice(i - windowSize + 1, i + 1);
+    const wins = slice.filter(t=>outcomeOf(t)==='Win').length;
+    points.push({
+      label: fmtDate(decided[i].closeTime),
+      value: wins / windowSize * 100,
+      tradeNo: i + 1,
+    });
+  }
+  return { points, decided };
+}
+
+function renderWinRateChart(list){
+  const canvas = document.getElementById('winrateChart');
+  const note = document.getElementById('winrateNote');
+  if(!canvas) return;
+  const win = parseInt(getSelectedChips('wrWindow')[0] || '20', 10);
+  const { points, decided } = computeRollingWinRate(list, win);
+
+  if(charts.winrateChart){ charts.winrateChart.destroy(); delete charts.winrateChart; }
+
+  if(points.length === 0){
+    // The chart was destroyed above, which already clears the canvas — no need
+    // to touch the drawing context (which may not exist in every environment).
+    if(note) note.textContent = `Nog niet genoeg data: je hebt ${decided.length} beslissende trades, er zijn er minstens ${win} nodig voor dit venster.`;
+    return;
+  }
+
+  const overall = decided.filter(t=>outcomeOf(t)==='Win').length / decided.length * 100;
+  const latest = points[points.length-1].value;
+  if(note){
+    const diff = latest - overall;
+    const dir = Math.abs(diff) < 1 ? 'in lijn met' : (diff > 0 ? 'boven' : 'onder');
+    note.innerHTML = `Laatste ${win} trades: <strong style="color:${latest>=overall?'var(--pos)':'var(--neg)'};">${latest.toFixed(0)}%</strong> — ${dir} je gemiddelde van ${overall.toFixed(0)}%.`;
+  }
+
+  charts.winrateChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: points.map(p=>p.label),
+      datasets: [
+        {
+          label: `Win rate (laatste ${win})`,
+          data: points.map(p=>p.value.toFixed(1)),
+          borderColor: '#8B7CF6',
+          borderWidth: 2,
+          fill: true,
+          backgroundColor: (c)=>{
+            const g = c.chart.ctx.createLinearGradient(0,0,0,220);
+            g.addColorStop(0,'rgba(139,124,246,0.18)');
+            g.addColorStop(1,'rgba(139,124,246,0)');
+            return g;
+          },
+          tension: 0.25, pointRadius: 0, pointHoverRadius: 4,
+        },
+        {
+          label: 'Gemiddelde',
+          data: points.map(()=>overall.toFixed(1)),
+          borderColor: 'rgba(138,147,166,0.6)',
+          borderWidth: 1.5,
+          borderDash: [5,4],
+          fill: false, pointRadius: 0, pointHoverRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color:'#8A93A6', font:{size:10}, boxWidth:12, usePointStyle:true } },
+        tooltip: { mode:'index', intersect:false, callbacks:{ label:(c)=>`${c.dataset.label}: ${c.parsed.y}%` } },
+      },
+      scales: {
+        x: { display:false, grid:{display:false} },
+        y: {
+          min: 0, max: 100,
+          grid: { color:'rgba(255,255,255,0.04)' },
+          ticks: { color:'#8A93A6', font:{size:10}, stepSize:25, callback:(v)=>v+'%' },
+        },
+      },
+    },
+  });
+}
 
 /* ---------- Charts ---------- */
 function renderLineChart(id, labels, data){
@@ -2813,6 +2929,8 @@ function initApp(){
   if(labelInput) labelInput.addEventListener('input', ()=>{ syncCsvCommissionField(); if(csvState.rows.length) renderCsvPreview(); });
   const exclToggle = document.getElementById('jExcluded');
   if(exclToggle) exclToggle.addEventListener('change', updateExcludeReasonVisibility);
+  const wrWindow = document.getElementById('wrWindow');
+  if(wrWindow) wrWindow.addEventListener('click', ()=> setTimeout(()=>renderWinRateChart(strategyTrades()), 0));
   // Filter listeners
   ['fSymbol','fOutcome','fJournal'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', renderLog); });
   const fs=$('#fSearch'); if(fs) fs.addEventListener('input', renderLog);
