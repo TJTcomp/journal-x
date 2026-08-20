@@ -579,23 +579,11 @@
         <div style="height:260px;"><canvas id="equityChart"></canvas></div>
       </div>
 
-      <div class="panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-          <h2 style="margin:0;">Win Rate over tijd</h2>
-          <div class="multiselect" id="wrWindow" data-single="true" style="margin:0;">
-            <div class="chip" data-val="10">10 trades</div>
-            <div class="chip selected" data-val="20">20 trades</div>
-            <div class="chip" data-val="50">50 trades</div>
-          </div>
-        </div>
-        <div class="desc">
-          Voortschrijdende win rate over je laatste trades. Een cumulatieve win rate wordt na verloop van tijd
-          bijna vlak en zegt weinig — dit laat zien of je de <em>laatste tijd</em> beter of slechter presteert
-          dan je gemiddelde (de stippellijn). Breakeven-trades tellen niet mee, net als in je KPI's.
-        </div>
-        <div style="height:240px;"><canvas id="winrateChart"></canvas></div>
-        <div id="winrateNote" style="font-size:11.5px; color:var(--text-faint); margin-top:8px;"></div>
+      <div class="section-head" style="margin-top:26px;"><h3>Kalender</h3><div class="rule"></div></div>
+      <div class="panel" style="padding:16px; overflow-x:auto;">
+        <div id="calendarGrid"></div>
       </div>
+
 
       <div class="panel">
         <h2>Consistentie · Streaks</h2>
@@ -618,10 +606,24 @@
         <div class="panel" id="accountBreakdownPanel" style="display:none;"><h2>Per Account</h2><table id="accountTable"></table></div>
       </div>
 
-      <div class="section-head" style="margin-top:26px;"><h3>Kalender</h3><div class="rule"></div></div>
-      <div class="panel" style="padding:16px; overflow-x:auto;">
-        <div id="calendarGrid"></div>
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <h2 style="margin:0;">Win Rate over tijd</h2>
+          <div class="multiselect" id="wrWindow" data-single="true" style="margin:0;">
+            <div class="chip" data-val="10">10 trades</div>
+            <div class="chip selected" data-val="20">20 trades</div>
+            <div class="chip" data-val="50">50 trades</div>
+          </div>
+        </div>
+        <div class="desc">
+          Voortschrijdende win rate over je laatste trades. Een cumulatieve win rate wordt na verloop van tijd
+          bijna vlak en zegt weinig — dit laat zien of je de <em>laatste tijd</em> beter of slechter presteert
+          dan je gemiddelde (de stippellijn). Breakeven-trades tellen niet mee, net als in je KPI's.
+        </div>
+        <div style="height:240px;"><canvas id="winrateChart"></canvas></div>
+        <div id="winrateNote" style="font-size:11.5px; color:var(--text-faint); margin-top:8px;"></div>
       </div>
+
     </div>
   </div>
 
