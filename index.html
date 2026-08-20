@@ -472,6 +472,18 @@
   .be-eq{ font-size:12px; color:var(--be); font-family:'JetBrains Mono',monospace; }
   .be-warn{ font-size:11.5px; color:var(--be); background:var(--be-glow); border:1px solid var(--be-dim); border-radius:8px; padding:8px 10px; margin-bottom:10px; line-height:1.5; }
 
+  /* Account identity in lists */
+  .acct-pill{ display:inline-block; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:20px;
+    color:var(--pill); background:color-mix(in srgb, var(--pill) 14%, transparent);
+    border:1px solid color-mix(in srgb, var(--pill) 35%, transparent); white-space:nowrap; }
+  /* Per-account breakdown shown when a calendar day is opened */
+  .day-summary{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .day-acct{ border:1px solid var(--hairline); border-left:3px solid var(--pill); border-radius:8px;
+    padding:8px 12px; background:var(--surface-1); min-width:150px; }
+  .day-acct-name{ font-size:11px; color:var(--text-dim); font-weight:600; }
+  .day-acct-pnl{ font-size:16px; font-weight:700; font-family:'JetBrains Mono',monospace; margin-top:1px; }
+  .day-acct-sub{ font-size:10px; color:var(--text-faint); }
+
   /* Journal modal facts grid */
   #jFacts{ display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-bottom:20px; }
   .fact{ background:var(--surface-1); padding:9px 12px; display:flex; flex-direction:column; gap:2px; }
@@ -1719,6 +1731,20 @@ function renderLineChart(id, labels, data){
   });
 }
 
+/* ---------- Account identity in lists ----------
+   When several accounts are shown together, each trade needs to say which one
+   it belongs to. A stable colour per account makes that readable at a glance
+   without having to read every label. */
+const ACCOUNT_COLORS = ['#8B7CF6','#2FD6A7','#E0B84B','#F2555C','#4FA8F5','#E07BC4'];
+function accountLabelFor(accountId){
+  const a = accounts.find(x=>x.id===accountId);
+  return a ? a.account_label : 'Onbekend';
+}
+function accountColor(accountId){
+  const i = accounts.findIndex(x=>x.id===accountId);
+  return ACCOUNT_COLORS[(i < 0 ? 0 : i) % ACCOUNT_COLORS.length];
+}
+
 /* ============================================================
    TRADE LOG (primary workflow) — newest first, tap to journal
    ============================================================ */
@@ -1732,7 +1758,41 @@ function renderLog(){
 
   const chipEl = $('#dateFilterChip');
   if(chipEl){
-    if(logDateFilter){ chipEl.style.display='block'; chipEl.innerHTML = `<span class="tag" style="background:var(--accent-glow); border-color:var(--accent); color:var(--accent-bright); font-size:12px; padding:6px 12px;">📅 ${logDateFilter} <span style="cursor:pointer; margin-left:6px;" onclick="clearDateFilter()">✕</span></span>`; }
+    if(logDateFilter){
+      const dayTrades = list.filter(t=>t.date===logDateFilter);
+      const dayTotal = dayTrades.reduce((a,t)=>a+t.netPnl,0);
+
+      let summary = '';
+      // Opening a day from the calendar is exactly when you want to know how the
+      // result splits across accounts — one total hides that entirely.
+      const byAccount = {};
+      dayTrades.forEach(t=>{ (byAccount[t.accountId] = byAccount[t.accountId] || []).push(t); });
+      const accountIds = Object.keys(byAccount);
+      if(accountIds.length > 1){
+        summary = `<div class="day-summary">` + accountIds
+          .sort((a,b)=> byAccount[b].reduce((x,t)=>x+t.netPnl,0) - byAccount[a].reduce((x,t)=>x+t.netPnl,0))
+          .map(id=>{
+            const ts = byAccount[id];
+            const pnl = ts.reduce((a,t)=>a+t.netPnl,0);
+            const thr = beThresholdFor(id);
+            const col = pnl>thr?'var(--pos)':pnl<-thr?'var(--neg)':'var(--be)';
+            return `<div class="day-acct" style="--pill:${accountColor(id)};">
+              <div class="day-acct-name">${accountLabelFor(id)}</div>
+              <div class="day-acct-pnl" style="color:${col};">${fmtMoneySigned(pnl)}</div>
+              <div class="day-acct-sub">${ts.length} trade${ts.length>1?'s':''}</div>
+            </div>`;
+          }).join('') +
+          `<div class="day-acct" style="--pill:var(--text-faint);">
+            <div class="day-acct-name">Totaal die dag</div>
+            <div class="day-acct-pnl" style="color:${dayTotal>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(dayTotal)}</div>
+            <div class="day-acct-sub">${dayTrades.length} trades · ${accountIds.length} accounts</div>
+          </div></div>`;
+      }
+
+      chipEl.style.display='block';
+      chipEl.innerHTML = summary +
+        `<span class="tag" style="background:var(--accent-glow); border-color:var(--accent); color:var(--accent-bright); font-size:12px; padding:6px 12px;">📅 ${fmtDate(logDateFilter)} · ${fmtMoneySigned(dayTotal)} <span style="cursor:pointer; margin-left:6px;" onclick="clearDateFilter()">✕</span></span>`;
+    }
     else { chipEl.style.display='none'; chipEl.innerHTML=''; }
   }
 
@@ -1752,12 +1812,15 @@ function renderLog(){
     $('#logTable').innerHTML = `<tr><td colspan="9">${emptyState()}</td></tr>`;
     return;
   }
-  let html = `<tr><th>Sluitdatum</th><th>Instrument</th><th>Dir</th><th>Volume</th><th>Net PnL</th><th>R</th><th>Resultaat</th><th>Journal</th><th></th></tr>`;
+  // The account column only earns its space when more than one account is in view.
+  const showAccountCol = activeAccountId === 'all' && accounts.length > 1;
+  let html = `<tr><th>Sluitdatum</th>${showAccountCol?'<th>Account</th>':''}<th>Instrument</th><th>Dir</th><th>Volume</th><th>Net PnL</th><th>R</th><th>Resultaat</th><th>Journal</th><th></th></tr>`;
   filtered.forEach(t=>{
     const o = outcomeOf(t);
     const r = rMultipleOf(t);
     html += `<tr style="cursor:pointer${t.excluded?'; opacity:0.55':''}" onclick="openJournal('${t.id}')"${t.excluded&&t.excludeReason?` title="Uitgesloten: ${t.excludeReason.replace(/"/g,'&quot;')}"`:''}>
       <td>${fmtDateTime(t.closeTime)}</td>
+      ${showAccountCol?`<td><span class="acct-pill" style="--pill:${accountColor(t.accountId)};">${accountLabelFor(t.accountId)}</span></td>`:''}
       <td style="font-weight:600;">${t.symbol}${t.excluded?' <span class="tag" style="font-size:9px; vertical-align:middle;">excl.</span>':''}</td>
       <td><span style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'}; font-weight:600;">${t.direction==='long'?'Long':'Short'}</span></td>
       <td style="color:var(--text-dim);">${t.volume}</td>
@@ -2756,7 +2819,39 @@ function renderCalendar(){
   let monthPnl=0; Object.keys(byDate).forEach(d=>{ if(d.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)) byDate[d].forEach(t=>monthPnl+=t.netPnl); });
 
   const dayNames=['Ma','Di','Wo','Do','Vr','Za','Zo'];
-  let html = `<div style="min-width:640px;">
+
+  // Build the day cells first, then chunk them into weeks so each row can carry
+  // its own total in an eighth column.
+  const cells = [];
+  for(let i=0;i<startWeekday;i++) cells.push({ empty:true });
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    cells.push({ day, dateStr, trades: byDate[dateStr] || [] });
+  }
+  while(cells.length % 7 !== 0) cells.push({ empty:true });
+
+  const cellHtml = (c)=>{
+    if(c.empty) return `<div></div>`;
+    const dayTrades = c.trades;
+    if(dayTrades.length===0){
+      return `<div style="aspect-ratio:1; border:1px solid var(--hairline); border-radius:8px; padding:6px; display:flex; flex-direction:column;"><span style="font-size:11px; color:var(--text-faint);">${c.day}</span></div>`;
+    }
+    const dayPnl = dayTrades.reduce((s,t)=>s+t.netPnl,0);
+    // Use the same breakeven threshold as trade classification, so a day that
+    // netted a couple of dollars shows as breakeven (yellow), not a win.
+    const dayThr = beThresholdFor(dayTrades[0].accountId);
+    const col = dayPnl>dayThr?'var(--pos)':dayPnl<-dayThr?'var(--neg)':'var(--be)';
+    const bg = dayPnl>dayThr?'rgba(47,214,167,0.10)':dayPnl<-dayThr?'rgba(242,85,92,0.10)':'rgba(224,184,75,0.10)';
+    // When several accounts traded that day, show how many so the split isn't hidden.
+    const accountCount = new Set(dayTrades.map(t=>t.accountId)).size;
+    return `<div onclick="filterLogByDate('${c.dateStr}')" style="aspect-ratio:1; border:1px solid ${col}; background:${bg}; border-radius:8px; padding:6px; display:flex; flex-direction:column; justify-content:space-between; cursor:pointer;">
+      <span style="font-size:11px; color:var(--text-dim);">${c.day}</span>
+      <div><div style="font-size:12px; font-weight:700; color:${col};">${fmtMoneySigned(dayPnl)}</div>
+        <div style="font-size:9px; color:var(--text-faint);">${dayTrades.length} trade${dayTrades.length>1?'s':''}${accountCount>1?` · ${accountCount} acc`:''}</div></div>
+    </div>`;
+  };
+
+  let html = `<div style="min-width:720px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <div style="display:flex; gap:8px; align-items:center;">
         <span class="btn secondary small" onclick="calPrev()">‹</span>
@@ -2765,24 +2860,26 @@ function renderCalendar(){
       </div>
       <div style="text-align:right;"><div style="font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Maand PnL</div><div style="font-size:18px; font-weight:700; color:${monthPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(monthPnl)}</div></div>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;">`;
+    <div style="display:grid; grid-template-columns:repeat(7,1fr) 0.9fr; gap:4px;">`;
+
   dayNames.forEach(d=> html += `<div style="text-align:center; font-size:10px; color:var(--text-faint); padding:4px 0; font-weight:600;">${d}</div>`);
-  for(let i=0;i<startWeekday;i++) html += `<div></div>`;
-  for(let day=1; day<=daysInMonth; day++){
-    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dayTrades = byDate[dateStr] || [];
-    if(dayTrades.length===0){
-      html += `<div style="aspect-ratio:1; border:1px solid var(--hairline); border-radius:8px; padding:6px; display:flex; flex-direction:column;"><span style="font-size:11px; color:var(--text-faint);">${day}</span></div>`;
+  html += `<div style="text-align:center; font-size:10px; color:var(--text-dim); padding:4px 0; font-weight:600;">Week</div>`;
+
+  for(let w=0; w<cells.length/7; w++){
+    const week = cells.slice(w*7, w*7+7);
+    week.forEach(c=> html += cellHtml(c));
+
+    const weekTrades = week.filter(c=>!c.empty).flatMap(c=>c.trades);
+    if(weekTrades.length===0){
+      html += `<div style="aspect-ratio:1; border:1px solid var(--hairline); border-radius:8px; background:var(--surface-1); display:flex; align-items:center; justify-content:center;"><span style="font-size:10px; color:var(--text-ghost);">—</span></div>`;
     } else {
-      const dayPnl = dayTrades.reduce((s,t)=>s+t.netPnl,0);
-      // Use the same breakeven threshold as trade classification, so a day that
-      // netted a couple of dollars shows as breakeven (yellow), not a win.
-      const dayThr = beThresholdFor(dayTrades[0].accountId);
-      const col = dayPnl>dayThr?'var(--pos)':dayPnl<-dayThr?'var(--neg)':'var(--be)';
-      const bg = dayPnl>dayThr?'rgba(47,214,167,0.10)':dayPnl<-dayThr?'rgba(242,85,92,0.10)':'rgba(224,184,75,0.10)';
-      html += `<div onclick="filterLogByDate('${dateStr}')" style="aspect-ratio:1; border:1px solid ${col}; background:${bg}; border-radius:8px; padding:6px; display:flex; flex-direction:column; justify-content:space-between; cursor:pointer;">
-        <span style="font-size:11px; color:var(--text-dim);">${day}</span>
-        <div><div style="font-size:12px; font-weight:700; color:${col};">${fmtMoneySigned(dayPnl)}</div><div style="font-size:9px; color:var(--text-faint);">${dayTrades.length} trade${dayTrades.length>1?'s':''}</div></div>
+      const weekPnl = weekTrades.reduce((s,t)=>s+t.netPnl,0);
+      const weekThr = beThresholdFor(weekTrades[0].accountId);
+      const wcol = weekPnl>weekThr?'var(--pos)':weekPnl<-weekThr?'var(--neg)':'var(--be)';
+      html += `<div style="aspect-ratio:1; border:1px solid var(--hairline); background:var(--surface-1); border-radius:8px; padding:6px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+        <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.4px;">Week ${w+1}</div>
+        <div style="font-size:12.5px; font-weight:700; color:${wcol}; margin-top:2px;">${fmtMoneySigned(weekPnl)}</div>
+        <div style="font-size:9px; color:var(--text-faint);">${weekTrades.length} trade${weekTrades.length>1?'s':''}</div>
       </div>`;
     }
   }
