@@ -2123,8 +2123,24 @@ function csvMergeEnabled(){
 }
 function csvCommissionRate(){
   const el = document.getElementById('csvCommission');
-  const v = el && el.value !== '' ? Number(el.value) : NaN;
-  return isNaN(v) ? 0 : Math.abs(v);
+  if(el && el.value !== ''){
+    const v = Number(el.value);
+    if(!isNaN(v)) return Math.abs(v);
+  }
+  // Nothing typed: fall back to what's saved on the account being imported into.
+  const label = (document.getElementById('csvAccountLabel')?.value || '').trim();
+  const acc = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
+  const saved = acc ? Number(acc.commission_per_contract) : NaN;
+  return isNaN(saved) ? 0 : Math.abs(saved);
+}
+// Keep the import field in step with the chosen account's saved rate.
+function syncCsvCommissionField(){
+  const el = document.getElementById('csvCommission');
+  if(!el || el.value !== '') return;
+  const label = (document.getElementById('csvAccountLabel')?.value || '').trim();
+  const acc = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
+  if(acc && Number(acc.commission_per_contract)) el.placeholder = `${Number(acc.commission_per_contract).toFixed(2)} (van dit account)`;
+  else el.placeholder = 'bv. 1.22';
 }
 // Internal bookkeeping fields must never reach the database.
 function stripInternal(t){ const c = { ...t }; delete c._entryId; return c; }
@@ -2263,14 +2279,21 @@ async function doCsvImport(){
     const userId = (await supabase.auth.getUser()).data.user.id;
 
     // Find the account for this label, or create it.
+    const rate = csvCommissionRate();
     let account = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
     if(!account){
       const { data, error } = await supabase.from('broker_accounts').insert({
         user_id: userId, broker_type:'tradovate', account_label: label,
         external_account_id: 'csv:'+label, account_currency:'USD', connection_status:'connected',
+        commission_per_contract: rate,
       }).select().single();
       if(error) throw error;
       account = data;
+    } else if(rate && Number(account.commission_per_contract) !== rate){
+      // Remember the rate on the account, so it applies to future imports too.
+      await supabase.from('broker_accounts')
+        .update({ commission_per_contract: rate }).eq('id', account.id);
+      account.commission_per_contract = rate;
     }
 
     // Upsert on (account, external_id). We MERGE rather than ignore: a position
@@ -2430,6 +2453,23 @@ function renderAccountsView(){
           <button type="button" class="btn secondary small" onclick="saveBeThreshold('${a.id}')">Opslaan</button>
         </div>
         <div class="be-setting">
+          <div class="be-setting-head">Commissie per contract</div>
+          <div class="be-setting-desc">
+            CSV-exports geven <strong>bruto</strong> P&amp;L, zonder kosten — daarom wijken ze af van je prop
+            firm-dashboard. Dit bedrag wordt gebruikt bij nieuwe imports, en je kunt er je bestaande trades
+            mee herberekenen.
+          </div>
+          <div class="be-setting-row">
+            <label>Per round turn ($)</label>
+            <input type="number" step="0.01" min="0" id="comm-${a.id}" value="${a.commission_per_contract || ''}" placeholder="bv. 1.22" style="width:120px;">
+            <button type="button" class="btn secondary small" onclick="saveCommission('${a.id}')">Opslaan</button>
+          </div>
+          <div class="be-setting-row" style="margin-top:2px;">
+            <button type="button" class="btn secondary small" onclick="recalcCommission('${a.id}')">Bestaande trades herberekenen</button>
+          </div>
+          <div id="commPreview-${a.id}" style="font-size:11.5px; color:var(--text-faint); margin-top:8px;"></div>
+        </div>
+        <div class="be-setting">
           <div class="be-setting-head">Standaardrisico per trade</div>
           <div class="be-setting-desc">Je broker bewaart je SL-prijs niet. Voor trades die <strong>door hun stop loss</strong> sloten leiden we de SL exact af. Voor trades die op TP of handmatig sloten gebruiken we dit bedrag om je R-multiple te berekenen.</div>
           <div class="be-setting-row">
@@ -2446,6 +2486,73 @@ function renderAccountsView(){
     </div>`;
   });
   el.innerHTML = html;
+}
+
+// Commission is a property of the account, not of a single import: the same
+// rate applies to every trade on it.
+async function saveCommission(accountId){
+  const el = document.getElementById('comm-'+accountId);
+  const val = el && el.value!=='' ? Math.abs(Number(el.value)) : 0;
+  if(isNaN(val)){ showToast('Vul een geldig bedrag in'); return; }
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ commission_per_contract: val }).eq('id', accountId);
+    if(error) throw error;
+    const acc = accounts.find(a=>a.id===accountId);
+    if(acc) acc.commission_per_contract = val;
+    showToast('Commissie opgeslagen ✓');
+    renderAccountsView();
+  }catch(e){
+    console.error('commission save failed', e);
+    showToast('Opslaan mislukt: ' + (e.message||''));
+  }
+}
+
+// Re-apply the commission to trades already imported. Net is always recomputed
+// from the trade's GROSS figure — which the broker set and we never alter — so
+// running this twice can't stack costs on top of each other.
+async function recalcCommission(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return;
+  const el = document.getElementById('comm-'+accountId);
+  const rate = el && el.value!=='' ? Math.abs(Number(el.value)) : Math.abs(Number(acc.commission_per_contract)||0);
+  if(isNaN(rate)){ showToast('Vul eerst een geldig bedrag in'); return; }
+
+  const affected = brokerTrades.filter(t=>t.accountId===accountId);
+  if(!affected.length){ showToast('Geen trades op dit account'); return; }
+
+  const preview = document.getElementById('commPreview-'+accountId);
+  const oldNet = affected.reduce((a,t)=>a+t.netPnl,0);
+  const newNet = affected.reduce((a,t)=> a + (t.grossPnl - rate*(t.volume||0)), 0);
+  if(!confirm(`${affected.length} trades herberekenen met $${rate.toFixed(2)} per contract?\n\n`+
+              `Netto nu:     ${fmtMoneySigned(oldNet)}\n`+
+              `Netto straks: ${fmtMoneySigned(newNet)}\n\n`+
+              `Je bruto-bedragen en je journal-notities blijven ongewijzigd.`)) return;
+
+  if(preview) preview.textContent = 'Bezig met herberekenen…';
+  try{
+    // Save the rate too, so future imports use it automatically.
+    await supabase.from('broker_accounts')
+      .update({ commission_per_contract: rate }).eq('id', accountId);
+    acc.commission_per_contract = rate;
+
+    for(const t of affected){
+      const commission = -(rate * (t.volume || 0));
+      const net = t.grossPnl + commission;   // commission is negative
+      const { error } = await supabase.from('broker_trades')
+        .update({ commission, net_pnl: net }).eq('id', t.id);
+      if(error) throw error;
+      t.commission = commission;
+      t.netPnl = net;
+    }
+    await loadAll();
+    showToast(`${affected.length} trades herberekend ✓`);
+    if(preview) preview.textContent = `Laatst herberekend met $${rate.toFixed(2)} per contract.`;
+  }catch(e){
+    console.error('recalc failed', e);
+    showToast('Herberekenen mislukt: ' + (e.message||''));
+    if(preview) preview.textContent = '';
+  }
 }
 
 // Balance for accounts we can't read it from (CSV imports). Percentage-based
@@ -2702,6 +2809,8 @@ function initApp(){
   if(mergeToggle) mergeToggle.addEventListener('change', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
   const commInput = document.getElementById('csvCommission');
   if(commInput) commInput.addEventListener('input', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
+  const labelInput = document.getElementById('csvAccountLabel');
+  if(labelInput) labelInput.addEventListener('input', ()=>{ syncCsvCommissionField(); if(csvState.rows.length) renderCsvPreview(); });
   const exclToggle = document.getElementById('jExcluded');
   if(exclToggle) exclToggle.addEventListener('change', updateExcludeReasonVisibility);
   // Filter listeners
@@ -2722,6 +2831,8 @@ window.copyCoachContext = copyCoachContext;
 window.saveBeThreshold = saveBeThreshold;
 window.saveDefaultRisk = saveDefaultRisk;
 window.saveAccountBalance = saveAccountBalance;
+window.saveCommission = saveCommission;
+window.recalcCommission = recalcCommission;
 window.doCsvImport = doCsvImport;
 window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
