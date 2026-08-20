@@ -699,6 +699,17 @@
           </div>
         </div>
 
+        <div class="field" style="max-width:280px; margin-bottom:14px;">
+          <label>Commissie per contract ($)</label>
+          <input type="number" step="0.01" min="0" id="csvCommission" placeholder="bv. 1.22">
+          <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">
+            Tradovate exporteert <strong>bruto</strong> P&amp;L, zonder kosten — daarom wijkt het af van je prop
+            firm-dashboard. Vul je commissie per contract (round turn) in en de bedragen kloppen weer.
+            Weet je het niet precies? Deel het verschil tussen je dashboard en je bruto-totaal door het aantal
+            verhandelde contracten.
+          </div>
+        </div>
+
         <div id="csvDrop" style="border:1px dashed var(--border); border-radius:10px; padding:22px; text-align:center; cursor:pointer;">
           <span id="csvHint" style="font-size:13px; color:var(--text-faint);">Klik hier of sleep je CSV-bestand naartoe</span>
         </div>
@@ -1973,7 +1984,8 @@ function csvExternalId(cells, map){
   return 'csv:' + (hash>>>0).toString(36);
 }
 
-function buildTradesFromCsv(dataRows, map, offsetHours){
+function buildTradesFromCsv(dataRows, map, offsetHours, commissionPerContract){
+  commissionPerContract = Number(commissionPerContract) || 0;
   const trades = [];
   const problems = [];
   dataRows.forEach((cells, i)=>{
@@ -1992,9 +2004,16 @@ function buildTradesFromCsv(dataRows, map, offsetHours){
     }
     // Bought first = long; sold first = short.
     const isLong = boughtAt.getTime() <= soldAt.getTime();
-    const commission = map.commission >= 0 ? (parseMoney(get('commission')) || 0) : 0;
+    // Tradovate's export reports GROSS P&L — price move x quantity x point
+    // value, with no costs deducted. That's why it won't match your prop firm
+    // dashboard. If the file has no commission column, fall back to the
+    // per-contract rate configured for the account.
+    const csvCommission = map.commission >= 0 ? (parseMoney(get('commission')) || 0) : null;
+    const commission = csvCommission !== null
+      ? Math.abs(csvCommission)
+      : Math.abs(commissionPerContract) * (qty || 0);
     const gross = pnl;
-    const net = gross - Math.abs(commission);
+    const net = gross - commission;
     // The fill that OPENED the position — a long opens on the buy, a short on
     // the sell. Scale-outs share this id, which is how we spot them later.
     const entryId = isLong
@@ -2012,7 +2031,7 @@ function buildTradesFromCsv(dataRows, map, offsetHours){
       open_price: isLong ? buyPrice : sellPrice,
       close_price: isLong ? sellPrice : buyPrice,
       gross_pnl: gross,
-      commission: -Math.abs(commission),
+      commission: -commission,
       swap: 0,
       net_pnl: net,
     });
@@ -2102,6 +2121,11 @@ function csvMergeEnabled(){
   const el = document.getElementById('csvMergeScaleOuts');
   return el ? el.checked : true;
 }
+function csvCommissionRate(){
+  const el = document.getElementById('csvCommission');
+  const v = el && el.value !== '' ? Number(el.value) : NaN;
+  return isNaN(v) ? 0 : Math.abs(v);
+}
 // Internal bookkeeping fields must never reach the database.
 function stripInternal(t){ const c = { ...t }; delete c._entryId; return c; }
 
@@ -2166,7 +2190,7 @@ function renderCsvPreview(){
   const el = document.getElementById('csvPreview');
   if(!el) return;
   const offset = parseFloat(ddValue('csvTz') || '0');
-  const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset, csvCommissionRate());
   const problems = raw.problems;
   const trades = csvMergeEnabled() ? mergeScaleOuts(raw.trades) : raw.trades.map(stripInternal);
   const mergedAway = raw.trades.length - trades.length;
@@ -2177,6 +2201,12 @@ function renderCsvPreview(){
     return;
   }
   const sample = trades.slice(0,5);
+  const totals = {
+    gross: trades.reduce((a,t)=>a+(t.gross_pnl||0),0),
+    commission: trades.reduce((a,t)=>a+Math.abs(t.commission||0),0),
+    net: trades.reduce((a,t)=>a+(t.net_pnl||0),0),
+    contracts: trades.reduce((a,t)=>a+(t.volume||0),0),
+  };
   el.innerHTML = `
     <div class="sec-label"><span style="color:var(--text-ghost);">02</span> Controleer</div>
     <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">
@@ -2198,6 +2228,24 @@ function renderCsvPreview(){
       </table>
     </div>
     ${trades.length>5?`<div style="font-size:11px; color:var(--text-faint); margin-top:6px;">…en nog ${trades.length-5} andere.</div>`:''}
+    <div style="margin-top:12px; padding:12px 14px; background:var(--surface-1); border:1px solid var(--hairline); border-radius:10px; font-size:12.5px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span style="color:var(--text-dim);">Bruto P&L (zoals in de CSV)</span>
+        <span style="font-family:'JetBrains Mono',monospace;">${fmtMoneySigned(totals.gross)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span style="color:var(--text-dim);">Commissies (${totals.contracts} contracten)</span>
+        <span style="font-family:'JetBrains Mono',monospace; color:var(--neg);">${fmtMoney(-totals.commission)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding-top:6px; border-top:1px solid var(--hairline); font-weight:700;">
+        <span>Netto resultaat</span>
+        <span style="font-family:'JetBrains Mono',monospace; color:${totals.net>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(totals.net)}</span>
+      </div>
+      <div style="font-size:11px; color:var(--text-faint); margin-top:8px;">
+        Vergelijk dit netto-bedrag met je prop firm-dashboard. Wijkt het af, pas dan de commissie hierboven aan
+        tot het klopt — dan zijn al je toekomstige imports meteen juist.
+      </div>
+    </div>
     ${problems.length?`<div class="be-warn" style="margin-top:10px;">${problems.length} rij(en) overgeslagen:<br>${problems.slice(0,4).join('<br>')}${problems.length>4?'<br>…':''}</div>`:''}
     <button type="button" class="btn" id="csvImportBtn" style="margin-top:14px;" onclick="doCsvImport()">Importeer ${trades.length} trades</button>`;
 }
@@ -2206,7 +2254,7 @@ async function doCsvImport(){
   const btn = document.getElementById('csvImportBtn');
   const label = (document.getElementById('csvAccountLabel').value || 'Tradovate').trim();
   const offset = parseFloat(ddValue('csvTz') || '0');
-  const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset);
+  const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset, csvCommissionRate());
   const trades = csvMergeEnabled() ? mergeScaleOuts(raw.trades) : raw.trades.map(stripInternal);
   if(!trades.length) return;
   if(btn){ btn.disabled = true; btn.textContent = 'Importeren…'; }
@@ -2652,6 +2700,8 @@ function initApp(){
   }
   const mergeToggle = document.getElementById('csvMergeScaleOuts');
   if(mergeToggle) mergeToggle.addEventListener('change', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
+  const commInput = document.getElementById('csvCommission');
+  if(commInput) commInput.addEventListener('input', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
   const exclToggle = document.getElementById('jExcluded');
   if(exclToggle) exclToggle.addEventListener('change', updateExcludeReasonVisibility);
   // Filter listeners
