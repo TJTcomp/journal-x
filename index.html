@@ -713,8 +713,10 @@
 
         <div class="form-row c2" style="margin-bottom:14px;">
           <div class="field">
-            <label>Accountnaam</label>
-            <input type="text" id="csvAccountLabel" placeholder="bv. Apex 50k eval" value="Apex (Tradovate)">
+            <label>Importeren naar account</label>
+            <select id="csvAccountSelect"></select>
+            <input type="text" id="csvAccountLabel" placeholder="Naam van het nieuwe account" style="display:none; margin-top:8px;">
+            <div id="csvAccountHint" style="font-size:11px; color:var(--text-faint); margin-top:5px;"></div>
           </div>
           <div class="field">
             <label>Tijdzone van de CSV-tijden</label>
@@ -1395,6 +1397,7 @@ async function loadAll(){
   try{ renderLog(); }catch(e){ console.error('log', e); }
   try{ renderCoach(); }catch(e){ console.error('coach', e); }
   try{ renderAccountsView(); }catch(e){ console.error('accounts view', e); }
+  try{ renderCsvAccountPicker(); }catch(e){ console.error('csv account picker', e); }
 }
 /* ============================================================
    AUTH (unchanged behaviour)
@@ -2298,6 +2301,58 @@ function combineCluster(cluster){
 /* ---------- CSV import: UI flow ---------- */
 let csvState = { headers:[], rows:[], map:null, fileName:'' };
 
+/* ---------- CSV import: choosing the target account ----------
+   Matching on a typed name meant one stray character silently created a second
+   account. Picking from the accounts you already have removes that whole class
+   of mistake; creating a new one is now a deliberate choice. */
+function renderCsvAccountPicker(){
+  const sel = document.getElementById('csvAccountSelect');
+  if(!sel) return;
+  const previous = sel.value;
+  const importable = accounts.filter(a => a.broker_type !== 'manual_legacy');
+  sel.innerHTML =
+    importable.map(a=>{
+      const count = brokerTrades.filter(t=>t.accountId===a.id).length;
+      return `<option value="${a.id}">${a.account_label} (${count} trades)</option>`;
+    }).join('') +
+    `<option value="__new__">+ Nieuw account aanmaken…</option>`;
+  // Keep the previous choice if it still exists, else prefer the account you're
+  // currently looking at, else the first one.
+  if(previous && [...sel.options].some(o=>o.value===previous)) sel.value = previous;
+  else if(activeAccountId !== 'all' && importable.some(a=>a.id===activeAccountId)) sel.value = activeAccountId;
+  updateCsvAccountFields();
+}
+function updateCsvAccountFields(){
+  const sel = document.getElementById('csvAccountSelect');
+  const nameInput = document.getElementById('csvAccountLabel');
+  const hint = document.getElementById('csvAccountHint');
+  const commInput = document.getElementById('csvCommission');
+  if(!sel || !nameInput) return;
+  const isNew = sel.value === '__new__';
+  nameInput.style.display = isNew ? 'block' : 'none';
+  if(isNew){
+    if(hint) hint.textContent = 'Er wordt een nieuw account aangemaakt met deze naam.';
+    if(commInput) commInput.placeholder = 'bv. 1.22';
+  } else {
+    const acc = accounts.find(a=>a.id===sel.value);
+    if(hint) hint.textContent = acc
+      ? `Trades worden toegevoegd aan dit bestaande account. Bestaande trades worden niet gedupliceerd.`
+      : '';
+    const rate = acc ? Number(acc.commission_per_contract) : 0;
+    if(commInput) commInput.placeholder = rate ? `${rate.toFixed(2)} (van dit account)` : 'bv. 1.22';
+  }
+}
+function csvTargetAccount(){
+  const sel = document.getElementById('csvAccountSelect');
+  if(!sel) return { isNew:true, label:'CSV import' };
+  if(sel.value === '__new__'){
+    const label = (document.getElementById('csvAccountLabel')?.value || '').trim();
+    return { isNew:true, label };
+  }
+  const acc = accounts.find(a=>a.id===sel.value);
+  return acc ? { isNew:false, account:acc, label:acc.account_label } : { isNew:true, label:'CSV import' };
+}
+
 function csvMergeEnabled(){
   const el = document.getElementById('csvMergeScaleOuts');
   return el ? el.checked : true;
@@ -2308,20 +2363,10 @@ function csvCommissionRate(){
     const v = Number(el.value);
     if(!isNaN(v)) return Math.abs(v);
   }
-  // Nothing typed: fall back to what's saved on the account being imported into.
-  const label = (document.getElementById('csvAccountLabel')?.value || '').trim();
-  const acc = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
-  const saved = acc ? Number(acc.commission_per_contract) : NaN;
+  // Nothing typed: fall back to what's saved on the selected account.
+  const target = csvTargetAccount();
+  const saved = target.account ? Number(target.account.commission_per_contract) : NaN;
   return isNaN(saved) ? 0 : Math.abs(saved);
-}
-// Keep the import field in step with the chosen account's saved rate.
-function syncCsvCommissionField(){
-  const el = document.getElementById('csvCommission');
-  if(!el || el.value !== '') return;
-  const label = (document.getElementById('csvAccountLabel')?.value || '').trim();
-  const acc = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
-  if(acc && Number(acc.commission_per_contract)) el.placeholder = `${Number(acc.commission_per_contract).toFixed(2)} (van dit account)`;
-  else el.placeholder = 'bv. 1.22';
 }
 // Internal bookkeeping fields must never reach the database.
 function stripInternal(t){ const c = { ...t }; delete c._entryId; return c; }
@@ -2449,7 +2494,12 @@ function renderCsvPreview(){
 
 async function doCsvImport(){
   const btn = document.getElementById('csvImportBtn');
-  const label = (document.getElementById('csvAccountLabel').value || 'Tradovate').trim();
+  const target = csvTargetAccount();
+  if(target.isNew && !target.label){
+    showToast('Geef het nieuwe account een naam');
+    document.getElementById('csvAccountLabel')?.focus();
+    return;
+  }
   const offset = parseFloat(ddValue('csvTz') || '0');
   const raw = buildTradesFromCsv(csvState.rows, csvState.map, offset, csvCommissionRate());
   const trades = csvMergeEnabled() ? mergeScaleOuts(raw.trades) : raw.trades.map(stripInternal);
@@ -2459,10 +2509,12 @@ async function doCsvImport(){
   try{
     const userId = (await supabase.auth.getUser()).data.user.id;
 
-    // Find the account for this label, or create it.
+    // The account is chosen explicitly, so an import can no longer create a
+    // stray duplicate because a name was typed slightly differently.
     const rate = csvCommissionRate();
-    let account = accounts.find(a => a.broker_type==='tradovate' && a.account_label===label);
+    let account = target.account;
     if(!account){
+      const label = target.label;
       const { data, error } = await supabase.from('broker_accounts').insert({
         user_id: userId, broker_type:'tradovate', account_label: label,
         external_account_id: 'csv:'+label, account_currency:'USD', connection_status:'connected',
@@ -2592,7 +2644,13 @@ function renderAccountsView(){
           <div class="acct-card-name">${a.account_label}${isLegacy?' <span class="tag" style="font-size:10px;">legacy</span>':''}</div>
           <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.external_account_id?' · '+a.external_account_id:''}${a.account_currency?' · '+a.account_currency:''}${a.balance?' · balans '+fmtMoney(Number(a.balance)):''}</div>
         </div>
-        <div class="acct-card-count">${count}<span>trades</span></div>
+        <div style="display:flex; align-items:flex-start; gap:12px;">
+          <div class="acct-card-count">${count}<span>trades</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <button type="button" class="btn secondary small" onclick="renameAccount('${a.id}')" title="Naam wijzigen">Hernoem</button>
+            <button type="button" class="btn secondary small" onclick="deleteAccount('${a.id}')" title="Account verwijderen" style="color:var(--neg);">Verwijder</button>
+          </div>
+        </div>
       </div>
       ${isLegacy ? `<div class="acct-card-status" style="color:var(--text-faint);">Handmatige legacy-trades — niet meegerekend in broker-KPI's.</div>`
       : `<div class="acct-card-status">
@@ -2667,6 +2725,67 @@ function renderAccountsView(){
     </div>`;
   });
   el.innerHTML = html;
+}
+
+// Renaming exists so an account created with a wrong name can be corrected
+// rather than deleted and re-imported.
+async function renameAccount(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return;
+  const name = prompt('Nieuwe naam voor dit account:', acc.account_label);
+  if(name === null) return;
+  const trimmed = name.trim();
+  if(!trimmed){ showToast('Naam mag niet leeg zijn'); return; }
+  if(trimmed === acc.account_label) return;
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ account_label: trimmed }).eq('id', accountId);
+    if(error) throw error;
+    acc.account_label = trimmed;
+    showToast('Account hernoemd ✓');
+    await loadAll();
+  }catch(e){
+    console.error('rename failed', e);
+    showToast('Hernoemen mislukt: ' + (e.message||''));
+  }
+}
+
+// Deleting an account removes its trades AND the journal notes attached to them,
+// via the database's cascade. That is not recoverable, so the confirmation asks
+// for the account name rather than a single OK click.
+async function deleteAccount(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return;
+  const affected = brokerTrades.filter(t=>t.accountId===accountId);
+  const withNotes = affected.filter(t=>t.hasJournal).length;
+
+  const warning =
+    `Account "${acc.account_label}" verwijderen?\n\n` +
+    `Dit verwijdert ${affected.length} trade${affected.length===1?'':'s'}` +
+    (withNotes ? ` waarvan ${withNotes} met journal-notities` : '') + `.\n` +
+    `Dit kan NIET ongedaan gemaakt worden.\n\n` +
+    `Zit je alleen met een verkeerde naam? Gebruik dan "Hernoem" in plaats hiervan.\n\n` +
+    `Typ de accountnaam om te bevestigen:`;
+
+  const typed = prompt(warning, '');
+  if(typed === null) return;
+  if(typed.trim() !== acc.account_label){
+    showToast('Naam kwam niet overeen — er is niets verwijderd');
+    return;
+  }
+
+  try{
+    // broker_trades and trade_journals are removed by the cascade on the
+    // foreign keys, so deleting the account is enough.
+    const { error } = await supabase.from('broker_accounts').delete().eq('id', accountId);
+    if(error) throw error;
+    if(activeAccountId === accountId) setActiveAccount('all');
+    showToast(`Account verwijderd (${affected.length} trades) ✓`);
+    await loadAll();
+  }catch(e){
+    console.error('delete failed', e);
+    showToast('Verwijderen mislukt: ' + (e.message||''));
+  }
 }
 
 // Commission is a property of the account, not of a single import: the same
@@ -3024,8 +3143,8 @@ function initApp(){
   if(mergeToggle) mergeToggle.addEventListener('change', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
   const commInput = document.getElementById('csvCommission');
   if(commInput) commInput.addEventListener('input', ()=>{ if(csvState.rows.length) renderCsvPreview(); });
-  const labelInput = document.getElementById('csvAccountLabel');
-  if(labelInput) labelInput.addEventListener('input', ()=>{ syncCsvCommissionField(); if(csvState.rows.length) renderCsvPreview(); });
+  const acctSel = document.getElementById('csvAccountSelect');
+  if(acctSel) acctSel.addEventListener('change', ()=>{ updateCsvAccountFields(); if(csvState.rows.length) renderCsvPreview(); });
   const exclToggle = document.getElementById('jExcluded');
   if(exclToggle) exclToggle.addEventListener('change', updateExcludeReasonVisibility);
   const wrWindow = document.getElementById('wrWindow');
@@ -3049,6 +3168,8 @@ window.saveBeThreshold = saveBeThreshold;
 window.saveDefaultRisk = saveDefaultRisk;
 window.saveAccountBalance = saveAccountBalance;
 window.saveCommission = saveCommission;
+window.renameAccount = renameAccount;
+window.deleteAccount = deleteAccount;
 window.recalcCommission = recalcCommission;
 window.doCsvImport = doCsvImport;
 window.openLightbox = openLightbox;
