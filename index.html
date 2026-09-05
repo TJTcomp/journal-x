@@ -2155,12 +2155,27 @@ function autoDetectMapping(headers){
 }
 
 // Stable id so the same trade is recognised across re-imports.
-function csvExternalId(cells, map){
-  const buyId = map.buyId >= 0 ? cells[map.buyId] : '';
-  const sellId = map.sellId >= 0 ? cells[map.sellId] : '';
-  if(buyId && sellId) return `${buyId}-${sellId}`;
-  // No ids in the file: derive one from the trade's own facts, which stay the
-  // same however often you export.
+/* ---------- Dedup key ----------
+   The id must identify a trade the same way on every import, regardless of how
+   the file was read. It is therefore anchored on the fill that OPENED the
+   position — a long opens on the buy, a short on the sell — which is the one
+   thing that stays constant whether or not partial exits are merged.
+
+   Getting this wrong is expensive: a key that shifts between imports silently
+   duplicates trades and quietly corrupts every statistic. */
+function csvExternalId(cells, map, isLong){
+  const buyId  = map.buyId  >= 0 ? String(cells[map.buyId]  || '').trim() : '';
+  const sellId = map.sellId >= 0 ? String(cells[map.sellId] || '').trim() : '';
+  const entryId = isLong ? buyId : sellId;
+  const exitId  = isLong ? sellId : buyId;
+
+  // Prefer the opening fill: shared by every partial exit of the same position.
+  if(entryId) return 'pos:' + entryId;
+  if(exitId)  return 'pos:' + exitId;
+
+  // No ids in the file: fall back to the trade's own facts, which don't change
+  // between exports. Note this can't dedup partial exits — without ids there is
+  // nothing tying them together.
   const parts = ['symbol','qty','buyPrice','sellPrice','boughtAt','soldAt']
     .map(k => map[k] >= 0 ? String(cells[map[k]]).trim() : '').join('|');
   let hash = 0;
@@ -2205,7 +2220,7 @@ function buildTradesFromCsv(dataRows, map, offsetHours, commissionPerContract){
       : (map.sellId >= 0 ? String(cells[map.sellId] || '').trim() : '');
 
     trades.push({
-      external_id: csvExternalId(cells, map),
+      external_id: csvExternalId(cells, map, isLong),
       _entryId: entryId,
       symbol,
       direction: isLong ? 'long' : 'short',
@@ -2279,9 +2294,10 @@ function combineCluster(cluster){
     return cluster.reduce((s,t)=> s + (pick(t)||0) * (totalVol>0 ? (t.volume||0) : 1), 0) / vol;
   };
   const first = cluster.reduce((a,b)=> new Date(a.open_time) <= new Date(b.open_time) ? a : b);
-  // Anchor the id on the opening fill so that re-importing later — once more
-  // exits are known — updates the same trade instead of creating a new one.
-  const anchor = first._entryId ? 'pos:'+first._entryId : 'pos:'+first.external_id;
+  // Every row of the cluster already carries the same opening-fill id, so the
+  // merged trade simply keeps it. That's what makes the id stable whether or
+  // not merging is on, and across later re-imports that see more exits.
+  const anchor = first.external_id;
 
   return {
     external_id: anchor,
