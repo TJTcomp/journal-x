@@ -937,6 +937,30 @@ function setActiveAccount(id){
 let editingJournalTradeId = null;
 let charts = {};
 
+/* ---------- LAZY VIEW RENDERING ----------
+   Dashboard, trade log and coach all depend on the same data, but you only ever
+   look at one at a time. When data or the account filter changes we just mark
+   every view dirty and render the one on screen; the others render the moment
+   you open them. Rebuilding all three on every switch was the main source of lag. */
+const viewDirty = { dashboard:true, log:true, coach:true };
+function currentViewName(){
+  const v = document.querySelector('.view.active');
+  return v ? v.id.replace(/^view-/, '') : 'dashboard';
+}
+function flushView(name){
+  if(!viewDirty[name]) return;
+  viewDirty[name] = false;
+  try{
+    if(name==='dashboard') renderDashboard();
+    else if(name==='log') renderLog();
+    else if(name==='coach') renderCoach();
+  }catch(e){ console.error('render '+name, e); }
+}
+function refreshViews(){
+  viewDirty.dashboard = viewDirty.log = viewDirty.coach = true;
+  flushView(currentViewName());
+}
+
 /* ============================================================
    STATS ENGINE (computes from real broker net_pnl)
    ============================================================ */
@@ -979,9 +1003,13 @@ function outcomeOf(t){
   return 'BE';
 }
 function isNum(v){ return v !== null && v !== undefined && !isNaN(v); }
-function byCloseTime(a,b){
-  return new Date(a.closeTime || a.openTime || 0) - new Date(b.closeTime || b.openTime || 0);
+// The timestamp is parsed once per trade and cached on it. Sorting calls the
+// comparator n·log(n) times, and parsing two ISO strings per call adds up fast.
+function closeTs(t){
+  if(t._ct === undefined) t._ct = new Date(t.closeTime || t.openTime || 0).getTime();
+  return t._ct;
 }
+function byCloseTime(a,b){ return closeTs(a) - closeTs(b); }
 // R-multiple: only when user supplied initial SL or planned risk. $/point cancels
 // out in the ratio method, so no instrument point value is needed.
 /* ---------- R-MULTIPLE ----------
@@ -1163,14 +1191,28 @@ function fmtDuration(ms){
   const d=Math.floor(h/24), hh=h%24;
   return hh?`${d}d ${hh}u`:`${d}d`;
 }
+// toLocaleString() builds a new formatter on every call, which is very slow when
+// it runs for every trade on every render. One shared formatter plus a memo of
+// results makes repeat renders (e.g. switching accounts) nearly free.
+const _dtfDateTime = new Intl.DateTimeFormat('nl-BE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+const _dtfDate = new Intl.DateTimeFormat('nl-BE', {day:'2-digit',month:'2-digit',year:'2-digit'});
+const _fmtCache = new Map();
+function _fmtCached(prefix, fmt, iso){
+  const k = prefix + iso;
+  let v = _fmtCache.get(k);
+  if(v === undefined){
+    try{ v = fmt.format(new Date(iso)); }catch(e){ v = '—'; }
+    _fmtCache.set(k, v);
+  }
+  return v;
+}
 function fmtDateTime(iso){
   if(!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleString('nl-BE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+  return _fmtCached('t', _dtfDateTime, iso);
 }
 function fmtDate(iso){
   if(!iso) return '—';
-  return new Date(iso).toLocaleDateString('nl-BE',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  return _fmtCached('d', _dtfDate, iso);
 }
 function clamp(v,mn,mx){ return Math.max(mn,Math.min(mx,v)); }
 
@@ -1287,11 +1329,19 @@ function accountIsExcluded(accountId){
   const a = accounts.find(x=>x.id===accountId);
   return !!(a && a.excluded_from_stats);
 }
-function strategyTrades(){
-  return activeTrades().filter(t=>!t.excluded && !accountIsExcluded(t.accountId));
+function offAccountIds(){
+  const s = new Set();
+  accounts.forEach(a=>{ if(a.excluded_from_stats) s.add(a.id); });
+  return s;
 }
+function strategyTrades(){
+  const off = offAccountIds();
+  return activeTrades().filter(t=>!t.excluded && !off.has(t.accountId));
+}
+// Trades you flagged yourself — only within accounts that count towards the KPIs.
 function excludedTrades(){
-  return activeTrades().filter(t=>t.excluded);
+  const off = offAccountIds();
+  return activeTrades().filter(t=>t.excluded && !off.has(t.accountId));
 }
 
 /* ---------- AUTO-REFRESH ----------
@@ -1400,9 +1450,7 @@ async function loadAll(){
     brokerTrades=[]; accounts=[]; syncStates={};
   }
   try{ renderAccountPicker(); }catch(e){ console.error('account picker', e); }
-  try{ renderDashboard(); }catch(e){ console.error('dashboard', e); }
-  try{ renderLog(); }catch(e){ console.error('log', e); }
-  try{ renderCoach(); }catch(e){ console.error('coach', e); }
+  refreshViews();
   try{ renderAccountsView(); }catch(e){ console.error('accounts view', e); }
   try{ renderCsvAccountPicker(); }catch(e){ console.error('csv account picker', e); }
 }
@@ -1450,6 +1498,7 @@ function switchView(name){
   const view = $('#view-'+name); if(view) view.classList.add('active');
   const btn = document.querySelector(`.navbtn[data-view="${name}"]`); if(btn) btn.classList.add('active');
   window.scrollTo(0,0);
+  flushView(name);   // render now if the data changed while this view was hidden
 }
 $$('.navbtn').forEach(b=> b.addEventListener('click', ()=> switchView(b.dataset.view)));
 
@@ -1478,8 +1527,12 @@ function renderAccountPicker(){
   });
   el.innerHTML = html;
   el.querySelectorAll('.acct-chip').forEach(c=> c.addEventListener('click', ()=>{
+    if(c.dataset.acct === activeAccountId) return;
     setActiveAccount(c.dataset.acct);
-    renderAccountPicker(); renderDashboard(); renderLog(); renderCoach();
+    // Highlight the chip first so the click feels instant, then let the browser
+    // paint before the (heavier) data render runs.
+    el.querySelectorAll('.acct-chip').forEach(x=> x.classList.toggle('active', x===c));
+    requestAnimationFrame(()=> setTimeout(refreshViews, 0));
   }));
 }
 
@@ -1487,11 +1540,13 @@ function renderAccountPicker(){
    DASHBOARD
    ============================================================ */
 function renderDashboard(){
-  const all = activeTrades().filter(t=>!accountIsExcluded(t.accountId)); // what the account really did (switched-off accounts left out)
+  viewDirty.dashboard = false;
   const list = strategyTrades();       // what your strategy did
   const excluded = excludedTrades();
   const s = computeStats(list);
-  const sAll = computeStats(all);
+  // What the account really did (switched-off accounts left out) — only needed
+  // for the "excluded trades" banner, so skip the work when there is none.
+  const sAll = excluded.length ? computeStats(activeTrades().filter(t=>!accountIsExcluded(t.accountId))) : null;
   const dd = computeMaxDrawdown(list);
   const streaks = computeStreaks(list);
   const holding = computeAvgHoldingMs(list);
@@ -1610,10 +1665,14 @@ function renderMoneyBreakdown(elId, groupMap, order){
   let keys = Object.keys(groupMap);
   if(keys.length===0){ el.innerHTML = emptyRow(); return; }
   if(order) keys.sort((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); return (ia<0?999:ia)-(ib<0?999:ib); });
-  else keys.sort((a,b)=> computeStats(groupMap[b]).netPnl - computeStats(groupMap[a]).netPnl);
+  // Stats are computed once per group — not again inside the sort comparator,
+  // which would recompute them n·log(n) times.
+  const statsByKey = {};
+  keys.forEach(k=>{ statsByKey[k] = computeStats(groupMap[k]); });
+  if(!order) keys.sort((a,b)=> statsByKey[b].netPnl - statsByKey[a].netPnl);
   let html = `<tr><th>${labelFor(elId)}</th><th>Trades</th><th>Win%</th><th>PF</th><th>Net PnL</th></tr>`;
   keys.forEach(k=>{
-    const s = computeStats(groupMap[k]);
+    const s = statsByKey[k];
     const pf = isFinite(s.profitFactor)?s.profitFactor.toFixed(2):'∞';
     html += `<tr>
       <td style="font-weight:600; color:var(--text);">${prettyKey(k)}</td>
@@ -1724,6 +1783,7 @@ function renderWinRateChart(list){
       ],
     },
     options: {
+      animation: false,
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: true, labels: { color:'#8A93A6', font:{size:10}, boxWidth:12, usePointStyle:true } },
@@ -1744,14 +1804,25 @@ function renderWinRateChart(list){
 /* ---------- Charts ---------- */
 function renderLineChart(id, labels, data){
   const ctx = document.getElementById(id); if(!ctx) return;
-  if(charts[id]) charts[id].destroy();
   const pos = data.length && parseFloat(data[data.length-1])>=0;
+  const color = pos ? '#2FD6A7' : '#F2555C';
+  // Reuse the existing chart and just swap its data: destroying and rebuilding
+  // it on every account switch is what made the dashboard stutter.
+  const existing = charts[id];
+  if(existing){
+    existing._pos = pos;
+    existing.data.labels = labels;
+    existing.data.datasets[0].data = data;
+    existing.data.datasets[0].borderColor = color;
+    existing.update('none');
+    return;
+  }
   charts[id] = new Chart(ctx, {
     type:'line',
-    data:{ labels, datasets:[{ data, borderColor: pos?'#2FD6A7':'#F2555C', borderWidth:2,
-      fill:true, backgroundColor:(c)=>{ const g=c.chart.ctx.createLinearGradient(0,0,0,240); const col=pos?'47,214,167':'242,85,92'; g.addColorStop(0,`rgba(${col},0.18)`); g.addColorStop(1,`rgba(${col},0)`); return g; },
+    data:{ labels, datasets:[{ data, borderColor: color, borderWidth:2,
+      fill:true, backgroundColor:(c)=>{ const p = c.chart._pos !== undefined ? c.chart._pos : pos; const g=c.chart.ctx.createLinearGradient(0,0,0,240); const col=p?'47,214,167':'242,85,92'; g.addColorStop(0,`rgba(${col},0.18)`); g.addColorStop(1,`rgba(${col},0)`); return g; },
       tension:0.25, pointRadius:0, pointHoverRadius:4 }]},
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{mode:'index',intersect:false, callbacks:{label:(c)=>fmtMoneySigned(parseFloat(c.parsed.y))}}},
+    options:{ animation:false, responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{mode:'index',intersect:false, callbacks:{label:(c)=>fmtMoneySigned(parseFloat(c.parsed.y))}}},
       scales:{ x:{ display:false, grid:{display:false}}, y:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#8A93A6', font:{size:10}, callback:(v)=>'$'+v}}}}
   });
 }
@@ -1774,7 +1845,13 @@ function accountColor(accountId){
    TRADE LOG (primary workflow) — newest first, tap to journal
    ============================================================ */
 let logDateFilter = null;
+// Only the newest rows are drawn at first — a few hundred table rows with inline
+// styles is what made switching accounts slow. "Toon meer" loads the next page.
+const LOG_PAGE = 100;
+let logLimit = LOG_PAGE, logSig = '';
+function logShowMore(){ logLimit += LOG_PAGE; renderLog(); }
 function renderLog(){
+  viewDirty.log = false;
   const list = activeTrades();
   const fSymbol = $('#fSymbol')?.value || '';
   const fOutcome = $('#fOutcome')?.value || '';
@@ -1831,6 +1908,9 @@ function renderLog(){
     if(fSearch && !((t.notes||'')+' '+(t.tags||[]).join(' ')).toLowerCase().includes(fSearch)) return false;
     return true;
   });
+  // A different account/filter starts again from the first page.
+  const sig = [activeAccountId, fSymbol, fOutcome, fJournal, fSearch, logDateFilter].join('|');
+  if(sig !== logSig){ logSig = sig; logLimit = LOG_PAGE; }
   const countEl = $('#logCount'); if(countEl) countEl.textContent = filtered.length;
 
   if(filtered.length===0){
@@ -1840,7 +1920,8 @@ function renderLog(){
   // The account column only earns its space when more than one account is in view.
   const showAccountCol = activeAccountId === 'all' && accounts.length > 1;
   let html = `<tr><th>Sluitdatum</th>${showAccountCol?'<th>Account</th>':''}<th>Instrument</th><th>Dir</th><th>Volume</th><th>Net PnL</th><th>R</th><th>Resultaat</th><th>Journal</th><th></th></tr>`;
-  filtered.forEach(t=>{
+  const rows = filtered.slice(0, logLimit);
+  rows.forEach(t=>{
     const o = outcomeOf(t);
     const r = rMultipleOf(t);
     html += `<tr style="cursor:pointer${t.excluded?'; opacity:0.55':''}" onclick="openJournal('${t.id}')"${t.excluded&&t.excludeReason?` title="Uitgesloten: ${t.excludeReason.replace(/"/g,'&quot;')}"`:''}>
@@ -1856,6 +1937,9 @@ function renderLog(){
       <td style="white-space:nowrap;"><span class="btn secondary small" onclick="event.stopPropagation(); openJournal('${t.id}')">${t.hasJournal?'Bewerk':'+ Journal'}</span></td>
     </tr>`;
   });
+  if(filtered.length > rows.length){
+    html += `<tr><td colspan="10" style="text-align:center; padding:14px;"><span class="btn secondary small" onclick="logShowMore()">Toon meer (${rows.length} van ${filtered.length})</span></td></tr>`;
+  }
   $('#logTable').innerHTML = html;
 }
 function emptyState(){ return `<div class="empty"><div class="big">Geen trades gevonden</div>Koppel je MT5 account of pas je filters aan.</div>`; }
@@ -2049,7 +2133,7 @@ async function saveJournal(){
     });
     showToast('Journal opgeslagen ✓');
     closeJournal();
-    renderLog(); renderDashboard(); renderCoach();
+    refreshViews();
   }catch(e){
     console.error('journal save failed', e);
     showToast('Opslaan mislukt: '+(e.message||''));
@@ -2599,6 +2683,7 @@ async function doCsvImport(){
    AI COACH VIEW
    ============================================================ */
 function renderCoach(){
+  viewDirty.coach = false;
   // Pattern-finding must run on representative trades only — one experimental
   // blow-up would otherwise drown out every real signal.
   const list = strategyTrades();
@@ -2778,7 +2863,7 @@ async function toggleAccountKpi(accountId){
     if(error) throw error;
     acc.excluded_from_stats = next;
     showToast(next ? 'Account uitgezet voor KPI\'s' : 'Account telt weer mee in je KPI\'s ✓');
-    renderAccountsView(); renderAccountPicker(); renderDashboard(); renderLog(); renderCoach();
+    renderAccountsView(); renderAccountPicker(); refreshViews();
   }catch(e){
     console.error('toggle kpi failed', e);
     showToast('Wijzigen mislukt: ' + (e.message||'kolom ontbreekt? draai de migratie'));
@@ -2926,7 +3011,7 @@ async function saveAccountBalance(accountId){
     const acc = accounts.find(a=>a.id===accountId);
     if(acc) acc.balance = val;
     showToast('Balans opgeslagen ✓');
-    renderAccountsView(); renderDashboard(); renderLog(); renderCoach();
+    renderAccountsView(); refreshViews();
   }catch(e){
     console.error('balance save failed', e);
     showToast('Opslaan mislukt: ' + (e.message||''));
@@ -2947,7 +3032,7 @@ async function saveDefaultRisk(accountId){
     const acc = accounts.find(a=>a.id===accountId);
     if(acc){ acc.default_risk_usd = usd; acc.default_risk_pct = pct; }
     showToast('Standaardrisico opgeslagen ✓');
-    renderAccountsView(); renderDashboard(); renderLog(); renderCoach();
+    renderAccountsView(); refreshViews();
   }catch(e){
     console.error('default risk save failed', e);
     showToast('Opslaan mislukt: ' + (e.message||''));
@@ -2968,7 +3053,7 @@ async function saveBeThreshold(accountId){
     const acc = accounts.find(a=>a.id===accountId);
     if(acc){ acc.be_threshold_pct = pct; acc.be_threshold_usd = usd; }
     showToast('Breakeven-drempel opgeslagen ✓');
-    renderAccountsView(); renderDashboard(); renderLog(); renderCoach();
+    renderAccountsView(); refreshViews();
   }catch(e){
     console.error('BE threshold save failed', e);
     showToast('Opslaan mislukt: ' + (e.message||''));
@@ -3065,7 +3150,7 @@ function renderCalendar(){
 }
 function calPrev(){ calMonthOffset--; renderCalendar(); }
 function calNext(){ calMonthOffset++; renderCalendar(); }
-function filterLogByDate(dateStr){ logDateFilter=dateStr; switchView('log'); renderLog(); }
+function filterLogByDate(dateStr){ logDateFilter=dateStr; viewDirty.log=true; switchView('log'); }
 function clearDateFilter(){ logDateFilter=null; renderLog(); }
 
 /* ---------- SCREENSHOT LIGHTBOX ---------- */
@@ -3228,6 +3313,7 @@ window.saveAccountBalance = saveAccountBalance;
 window.saveCommission = saveCommission;
 window.renameAccount = renameAccount;
 window.toggleAccountKpi = toggleAccountKpi;
+window.logShowMore = logShowMore;
 window.deleteAccount = deleteAccount;
 window.recalcCommission = recalcCommission;
 window.doCsvImport = doCsvImport;
