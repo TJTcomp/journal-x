@@ -1280,8 +1280,14 @@ function activeTrades(){
 // The subset your strategy KPIs are built on. Trades you marked as not
 // representative (an experiment, a news gamble) are left out here — but they are
 // never hidden or deleted, and they still count towards your real P&L above.
+// An account can be switched off for your KPIs ("uitzetten"). Its trades then
+// drop out of every statistic, but they stay visible in the log and calendar.
+function accountIsExcluded(accountId){
+  const a = accounts.find(x=>x.id===accountId);
+  return !!(a && a.excluded_from_stats);
+}
 function strategyTrades(){
-  return activeTrades().filter(t=>!t.excluded);
+  return activeTrades().filter(t=>!t.excluded && !accountIsExcluded(t.accountId));
 }
 function excludedTrades(){
   return activeTrades().filter(t=>t.excluded);
@@ -1458,15 +1464,16 @@ function renderAccountPicker(){
     setActiveAccount('all');
   }
   el.style.display='flex';
-  const chip = (id, label, sub)=>{
+  const chip = (id, label, sub, off)=>{
     const active = activeAccountId===id;
-    return `<div class="acct-chip${active?' active':''}" data-acct="${id}">
+    return `<div class="acct-chip${active?' active':''}" data-acct="${id}"${off?' style="opacity:0.5;" title="Uitgezet: telt niet mee in de KPI\'s"':''}>
       <span class="acct-label">${label}</span>${sub?`<span class="acct-sub">${sub}</span>`:''}</div>`;
   };
   let html = chip('all', 'Alle accounts', brokerTrades.length+' trades');
   accounts.forEach(a=>{
     const count = brokerTrades.filter(t=>t.accountId===a.id).length;
-    html += chip(a.id, a.account_label, count+' trades');
+    const off = !!a.excluded_from_stats;
+    html += chip(a.id, a.account_label, count+' trades'+(off?' · uit KPI\'s':''), off);
   });
   el.innerHTML = html;
   el.querySelectorAll('.acct-chip').forEach(c=> c.addEventListener('click', ()=>{
@@ -1479,7 +1486,7 @@ function renderAccountPicker(){
    DASHBOARD
    ============================================================ */
 function renderDashboard(){
-  const all = activeTrades();          // what the account really did
+  const all = activeTrades().filter(t=>!accountIsExcluded(t.accountId)); // what the account really did (switched-off accounts left out)
   const list = strategyTrades();       // what your strategy did
   const excluded = excludedTrades();
   const s = computeStats(list);
@@ -2663,6 +2670,7 @@ function renderAccountsView(){
         <div style="display:flex; align-items:flex-start; gap:12px;">
           <div class="acct-card-count">${count}<span>trades</span></div>
           <div style="display:flex; flex-direction:column; gap:4px;">
+            <button type="button" class="btn secondary small" onclick="toggleAccountKpi('${a.id}')" title="${a.excluded_from_stats ? 'Telt weer mee in je KPI\'s' : 'Haal dit account uit je KPI\'s (trades blijven zichtbaar in de journal)'}">${a.excluded_from_stats ? '⏻ Inschakelen' : '⏻ Uitzetten'}</button>
             <button type="button" class="btn secondary small" onclick="renameAccount('${a.id}')" title="Naam wijzigen">Hernoem</button>
             <button type="button" class="btn secondary small" onclick="deleteAccount('${a.id}')" title="Account verwijderen" style="color:var(--neg);">Verwijder</button>
           </div>
@@ -2741,6 +2749,25 @@ function renderAccountsView(){
     </div>`;
   });
   el.innerHTML = html;
+}
+
+// Switching an account off removes its trades from all KPIs (dashboard, coach,
+// win-rate, streaks). Nothing is deleted: the trades stay in the log and calendar.
+async function toggleAccountKpi(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return;
+  const next = !acc.excluded_from_stats;
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ excluded_from_stats: next }).eq('id', accountId);
+    if(error) throw error;
+    acc.excluded_from_stats = next;
+    showToast(next ? 'Account uitgezet voor KPI\'s' : 'Account telt weer mee in je KPI\'s ✓');
+    renderAccountsView(); renderAccountPicker(); renderDashboard(); renderLog(); renderCoach();
+  }catch(e){
+    console.error('toggle kpi failed', e);
+    showToast('Wijzigen mislukt: ' + (e.message||'kolom ontbreekt? draai de migratie'));
+  }
 }
 
 // Renaming exists so an account created with a wrong name can be corrected
