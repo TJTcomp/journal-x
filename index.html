@@ -625,6 +625,7 @@
             <div class="chip" data-val="10">10 trades</div>
             <div class="chip selected" data-val="20">20 trades</div>
             <div class="chip" data-val="50">50 trades</div>
+            <div class="chip" data-val="all">Alle trades</div>
           </div>
         </div>
         <div class="desc">
@@ -1640,6 +1641,16 @@ function computeRollingWinRate(list, windowSize){
   const decided = [...list]
     .filter(t=>{ const o = outcomeOf(t); return o==='Win' || o==='Loss'; })
     .sort(byCloseTime);
+  // 'all' = cumulative win rate since your very first trade.
+  if(windowSize === 'all'){
+    const points = [];
+    let wins = 0;
+    decided.forEach((t,i)=>{
+      if(outcomeOf(t)==='Win') wins++;
+      points.push({ label: fmtDate(t.closeTime), value: wins/(i+1)*100, tradeNo: i+1 });
+    });
+    return { points, decided };
+  }
   if(decided.length < windowSize) return { points: [], decided };
 
   const points = [];
@@ -1659,7 +1670,9 @@ function renderWinRateChart(list){
   const canvas = document.getElementById('winrateChart');
   const note = document.getElementById('winrateNote');
   if(!canvas) return;
-  const win = parseInt(getSelectedChips('wrWindow')[0] || '20', 10);
+  const sel = getSelectedChips('wrWindow')[0] || '20';
+  const isAll = sel === 'all';
+  const win = isAll ? 'all' : parseInt(sel, 10);
   const { points, decided } = computeRollingWinRate(list, win);
 
   if(charts.winrateChart){ charts.winrateChart.destroy(); delete charts.winrateChart; }
@@ -1667,7 +1680,7 @@ function renderWinRateChart(list){
   if(points.length === 0){
     // The chart was destroyed above, which already clears the canvas — no need
     // to touch the drawing context (which may not exist in every environment).
-    if(note) note.textContent = `Nog niet genoeg data: je hebt ${decided.length} beslissende trades, er zijn er minstens ${win} nodig voor dit venster.`;
+    if(note) note.textContent = isAll ? 'Nog geen beslissende trades.' : `Nog niet genoeg data: je hebt ${decided.length} beslissende trades, er zijn er minstens ${win} nodig voor dit venster.`;
     return;
   }
 
@@ -1676,7 +1689,9 @@ function renderWinRateChart(list){
   if(note){
     const diff = latest - overall;
     const dir = Math.abs(diff) < 1 ? 'in lijn met' : (diff > 0 ? 'boven' : 'onder');
-    note.innerHTML = `Laatste ${win} trades: <strong style="color:${latest>=overall?'var(--pos)':'var(--neg)'};">${latest.toFixed(0)}%</strong> — ${dir} je gemiddelde van ${overall.toFixed(0)}%.`;
+    note.innerHTML = isAll
+      ? `Win rate over al je ${decided.length} beslissende trades: <strong style="color:${latest>=50?'var(--pos)':'var(--neg)'};">${latest.toFixed(1)}%</strong>.`
+      : `Laatste ${win} trades: <strong style="color:${latest>=overall?'var(--pos)':'var(--neg)'};">${latest.toFixed(0)}%</strong> — ${dir} je gemiddelde van ${overall.toFixed(0)}%.`;
   }
 
   charts.winrateChart = new Chart(canvas, {
@@ -1685,7 +1700,7 @@ function renderWinRateChart(list){
       labels: points.map(p=>p.label),
       datasets: [
         {
-          label: `Win rate (laatste ${win})`,
+          label: isAll ? 'Win rate (alle trades, cumulatief)' : `Win rate (laatste ${win})`,
           data: points.map(p=>p.value.toFixed(1)),
           borderColor: '#8B7CF6',
           borderWidth: 2,
