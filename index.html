@@ -1360,15 +1360,183 @@ function offAccountIds(){
   accounts.forEach(a=>{ if(a.excluded_from_stats) s.add(a.id); });
   return s;
 }
-function strategyTrades(){
+// Trades that count towards the KPIs at all: not in a switched-off account, and
+// — in the "all accounts" view — not a copy of a trade that is already counted
+// on your main account. (Viewing a single account always shows all its trades.)
+function countedTrades(){
   const off = offAccountIds();
-  return activeTrades().filter(t=>!t.excluded && !off.has(t.accountId));
+  const all = activeAccountId==='all';
+  return activeTrades().filter(t=>{
+    if(off.has(t.accountId)) return false;
+    if(all && t.isCopy && !off.has(t.repAccountId)) return false;
+    return true;
+  });
+}
+function strategyTrades(){
+  return countedTrades().filter(t=>!t.excluded);
 }
 // Trades you flagged yourself — only within accounts that count towards the KPIs.
 function excludedTrades(){
-  const off = offAccountIds();
-  return activeTrades().filter(t=>t.excluded && !off.has(t.accountId));
+  return countedTrades().filter(t=>t.excluded);
 }
+
+/* ============================================================
+   COPY TRADING
+   You take one trade and a copier repeats it on several accounts. Journalling
+   and counting all of them would triple every number. Instead an account can be
+   marked "copy of" your main account. Trades are matched across the group on
+   instrument + direction + open time (a copier fires within seconds). Per
+   matched set only the MAIN account's trade counts and carries the journal.
+   Trades that exist on only one account (e.g. your main account was already
+   gone, or the copier skipped one) are unique and always count.
+   Switching main account later needs no re-importing: every account already
+   has its own trades, and journal rows are simply re-attached to the new main
+   trade (see journalMoves).
+   ============================================================ */
+const COPY_MATCH_SECONDS = 120;
+const SYMBOL_ALIASES = {
+  MNQ:'NQ', NAS100:'NQ', US100:'NQ', USTEC:'NQ', NQ100:'NQ',
+  MES:'ES', US500:'ES', SPX500:'ES', SP500:'ES',
+  MYM:'YM', US30:'YM', DJ30:'YM', WS30:'YM',
+  M2K:'RTY', US2000:'RTY',
+};
+// NQZ6 / MNQH26 -> NQ ; micro and CFD names map onto the same underlying.
+function normSymbol(s){
+  let x = String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const m = x.match(/^([A-Z][A-Z0-9]{1,3})[FGHJKMNQUVXZ]\d{1,2}$/);
+  if(m) x = m[1];
+  return SYMBOL_ALIASES[x] || x;
+}
+function openTs(t){
+  if(t._ot === undefined) t._ot = new Date(t.openTime || t.closeTime || 0).getTime();
+  return t._ot;
+}
+
+// (Re)builds the copy links on every trade. Sets: isCopy, repId, repAccountId,
+// clusterId, rank, copies — and lets copies show the journal of their main trade.
+function computeCopyClusters(){
+  brokerTrades.forEach(t=>{ t.isCopy=false; t.repId=null; t.repAccountId=null; t.clusterId=t.id; t.rank=0; t.copies=0; });
+  const byId = new Map(brokerTrades.map(t=>[t.id,t]));
+  const kidsOf = {};
+  accounts.forEach(a=>{
+    if(a.copy_of && accounts.some(p=>p.id===a.copy_of && !p.copy_of)) (kidsOf[a.copy_of] = kidsOf[a.copy_of] || []).push(a);
+  });
+  const win = COPY_MATCH_SECONDS * 1000;
+
+  accounts.forEach(root=>{
+    const kids = kidsOf[root.id];
+    if(!kids || !kids.length) return;
+    const members = [root, ...kids];                 // rank 0 = main account
+    const rankOf = {}; members.forEach((a,i)=>{ rankOf[a.id] = i; });
+    const parent = new Map();
+    const find = x=>{ let r = x; while(parent.has(r)) r = parent.get(r); return r; };
+    const union = (a,b)=>{ const ra=find(a), rb=find(b); if(ra!==rb) parent.set(ra, rb); };
+
+    // Per member: trades bucketed by instrument+direction, sorted by open time.
+    const buckets = members.map(a=>{
+      const m = new Map();
+      brokerTrades.forEach(t=>{
+        if(t.accountId !== a.id) return;
+        const k = normSymbol(t.symbol)+'|'+t.direction;
+        if(!m.has(k)) m.set(k, []);
+        m.get(k).push(t);
+      });
+      m.forEach(v=>v.sort((x,y)=>openTs(x)-openTs(y)));
+      return m;
+    });
+
+    // Match each lower-ranked account's trades against every higher-ranked one,
+    // one-to-one, nearest open time within the window.
+    for(let k=1; k<members.length; k++){
+      for(let j=0; j<k; j++){
+        buckets[k].forEach((listK, key)=>{
+          const listJ = buckets[j].get(key); if(!listJ) return;
+          const used = new Set(); let lo = 0;
+          listK.forEach(t=>{
+            const ts = openTs(t);
+            while(lo < listJ.length && openTs(listJ[lo]) < ts - win) lo++;
+            let best = null, bestD = Infinity;
+            for(let i=lo; i<listJ.length && openTs(listJ[i]) <= ts + win; i++){
+              const u = listJ[i]; if(used.has(u.id)) continue;
+              const d = Math.abs(openTs(u) - ts);
+              if(d < bestD){ best = u; bestD = d; }
+            }
+            if(best){ used.add(best.id); union(best.id, t.id); }
+          });
+        });
+      }
+    }
+
+    // Collect the matched sets; the lowest-ranked account's trade is the main one.
+    const sets = new Map();
+    brokerTrades.forEach(t=>{
+      if(!(t.accountId in rankOf)) return;
+      t.rank = rankOf[t.accountId];
+      const r = find(t.id);
+      if(!sets.has(r)) sets.set(r, []);
+      sets.get(r).push(t);
+    });
+    sets.forEach(arr=>{
+      if(arr.length < 2) return;
+      arr.sort((x,y)=> (x.rank-y.rank) || (openTs(x)-openTs(y)));
+      const rep = arr[0];
+      rep.copies = arr.length - 1;
+      arr.forEach(t=>{
+        t.clusterId = rep.id;
+        if(t !== rep){ t.isCopy = true; t.repId = rep.id; t.repAccountId = rep.accountId; }
+      });
+    });
+  });
+
+  // A copy shows its main trade's journal, so it is never asked to be journaled
+  // twice. Risk amounts are left alone: they depend on that account's own size.
+  brokerTrades.forEach(t=>{
+    if(!t.isCopy) return;
+    const rep = byId.get(t.repId);
+    if(!rep || !(rep.hasJournal || rep.journalId)) return;
+    t.notes=rep.notes; t.analysis=rep.analysis; t.lessonsLearned=rep.lessonsLearned;
+    t.emotion=rep.emotion; t.setupGrade=rep.setupGrade; t.tags=rep.tags; t.followedPlan=rep.followedPlan;
+    t.excluded=rep.excluded; t.excludeReason=rep.excludeReason;
+    t.hasScreenshots=rep.hasScreenshots; t.hasJournal=rep.hasJournal;
+  });
+}
+
+// Journal rows live on a trade (unique per trade). When the main trade of a set
+// has none but one of its copies does — you journaled before linking, or you just
+// switched main account — the existing row is re-attached to the main trade.
+// A plain UPDATE of its trade id: nothing is duplicated, screenshots included.
+function journalMoves(){
+  const moves = [], claimed = new Set();
+  brokerTrades.filter(t=>t.isCopy && t.journalId).sort((a,b)=>a.rank-b.rank).forEach(t=>{
+    const rep = brokerTrades.find(x=>x.id===t.repId);
+    if(rep && !rep.journalId && !claimed.has(rep.id)){
+      moves.push({ journalId:t.journalId, toTradeId:rep.id });
+      claimed.add(rep.id);
+    }
+  });
+  return moves;
+}
+// Same idea for deleting an account: rescue its journals onto the trades that stay.
+function rescueMoves(accountId){
+  const moves = [], claimed = new Set();
+  brokerTrades.filter(t=>t.accountId===accountId && t.journalId).forEach(t=>{
+    const target = brokerTrades
+      .filter(x=>x.clusterId===t.clusterId && x.accountId!==accountId)
+      .sort((a,b)=>a.rank-b.rank)[0];
+    if(target && !target.journalId && !claimed.has(target.id)){
+      moves.push({ journalId:t.journalId, toTradeId:target.id });
+      claimed.add(target.id);
+    }
+  });
+  return moves;
+}
+async function applyJournalMoves(moves){
+  for(const m of moves){
+    const { error } = await supabase.from('trade_journals').update({ broker_trade_id: m.toTradeId }).eq('id', m.journalId);
+    if(error) throw error;
+  }
+}
+let movingJournals = false;
 
 /* ---------- AUTO-REFRESH ----------
    The sync service writes new trades to Supabase in the background. Rather than
@@ -1470,6 +1638,20 @@ async function loadAll(){
     // Set account currency from the first non-legacy connected account.
     const primary = accounts.find(a=>a.account_currency);
     if(primary && primary.account_currency) accountCurrency = primary.account_currency;
+
+    computeCopyClusters();
+    // Re-attach journals to the main trade of each copy set, then reload once.
+    // The flag keeps a failing update from looping.
+    if(!movingJournals){
+      const moves = journalMoves();
+      if(moves.length){
+        movingJournals = true;
+        try{ await applyJournalMoves(moves); await loadAll(); }
+        catch(err){ console.error('journal move failed', err); }
+        finally{ movingJournals = false; }
+        return;
+      }
+    }
   }catch(e){
     console.error('load error', e);
     showToast('Laden mislukt: ' + (e.message||''));
@@ -1555,7 +1737,7 @@ function renderAccountPicker(){
   let html = chip('all', 'Alle accounts', brokerTrades.filter(t=>!off.has(t.accountId)).length+' trades');
   visible.forEach(a=>{
     const count = brokerTrades.filter(t=>t.accountId===a.id).length;
-    html += chip(a.id, a.account_label, count+' trades');
+    html += chip(a.id, a.account_label, count+' trades'+(a.copy_of ? ' · kopie' : ''));
   });
   el.innerHTML = html;
   el.querySelectorAll('.acct-chip').forEach(c=> c.addEventListener('click', ()=>{
@@ -1578,7 +1760,7 @@ function renderDashboard(){
   const s = computeStats(list);
   // What the account really did (switched-off accounts left out) — only needed
   // for the "excluded trades" banner, so skip the work when there is none.
-  const sAll = excluded.length ? computeStats(activeTrades().filter(t=>!accountIsExcluded(t.accountId))) : null;
+  const sAll = excluded.length ? computeStats(countedTrades()) : null;
   const dd = computeMaxDrawdown(list);
   const streaks = computeStreaks(list);
   const holding = computeAvgHoldingMs(list);
@@ -1956,10 +2138,11 @@ function renderLog(){
   rows.forEach(t=>{
     const o = outcomeOf(t);
     const r = rMultipleOf(t);
-    html += `<tr style="cursor:pointer${t.excluded?'; opacity:0.55':''}" onclick="openJournal('${t.id}')"${t.excluded&&t.excludeReason?` title="Uitgesloten: ${t.excludeReason.replace(/"/g,'&quot;')}"`:''}>
+    const dupCopy = t.isCopy && activeAccountId==='all';   // counted once, on the main account
+    html += `<tr style="cursor:pointer${(t.excluded||dupCopy)?'; opacity:0.55':''}" onclick="openJournal('${t.id}')"${t.excluded&&t.excludeReason?` title="Uitgesloten: ${t.excludeReason.replace(/"/g,'&quot;')}"`:''}>
       <td>${fmtDateTime(t.closeTime)}</td>
       ${showAccountCol?`<td><span class="acct-pill" style="--pill:${accountColor(t.accountId)};">${accountLabelFor(t.accountId)}</span></td>`:''}
-      <td style="font-weight:600;">${t.symbol}${t.excluded?' <span class="tag" style="font-size:9px; vertical-align:middle;">excl.</span>':''}</td>
+      <td style="font-weight:600;">${t.symbol}${t.excluded?' <span class="tag" style="font-size:9px; vertical-align:middle;">excl.</span>':''}${dupCopy?' <span class="tag" style="font-size:9px; vertical-align:middle;" title="Kopie van een trade op je hoofdaccount — telt niet dubbel mee">kopie</span>':''}</td>
       <td><span style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'}; font-weight:600;">${t.direction==='long'?'Long':'Short'}</span></td>
       <td style="color:var(--text-dim);">${t.volume}</td>
       <td style="font-weight:700; color:${t.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.netPnl)}</td>
@@ -1987,8 +2170,13 @@ function populateFilterOptions(){
    at the top, your notes/tags/emotion/screenshots/optional-risk below.
    ============================================================ */
 function openJournal(tradeId){
-  const t = brokerTrades.find(x=>x.id===tradeId);
+  let t = brokerTrades.find(x=>x.id===tradeId);
   if(!t) return;
+  // A copy has no journal of its own: its notes belong to the main account's trade.
+  if(t.isCopy && t.repId){
+    const rep = brokerTrades.find(x=>x.id===t.repId);
+    if(rep){ t = rep; tradeId = rep.id; showToast('Kopie-trade: je journalt de trade op je hoofdaccount'); }
+  }
   editingJournalTradeId = tradeId;
 
   // Read-only broker facts
@@ -2125,6 +2313,7 @@ async function saveJournal(){
   if(excluded && !excludeReason){
     showToast('Vul een reden in waarom deze trade niet meetelt');
     $('#jExcludeReason').focus();
+    btn.disabled=false; btn.textContent='Journal Opslaan';   // was left stuck on "Opslaan…"
     return;
   }
 
@@ -2165,6 +2354,7 @@ async function saveJournal(){
     });
     showToast('Journal opgeslagen ✓');
     closeJournal();
+    computeCopyClusters();   // let the copies of this trade pick up the new notes
     refreshViews();
   }catch(e){
     console.error('journal save failed', e);
@@ -2790,6 +2980,10 @@ function renderAccountsView(){
     const ss = syncStates[a.id];
     const isOpen = openAccounts.has(a.id);
     const isOff = !!a.excluded_from_stats;
+    const parentAcc = a.copy_of ? accounts.find(x=>x.id===a.copy_of) : null;
+    const kids = accounts.filter(x=>x.copy_of===a.id);
+    const copyTag = parentAcc ? ` · kopie van ${parentAcc.account_label}`
+                  : kids.length ? ` · hoofdaccount (${kids.length} ${kids.length>1?'kopieën':'kopie'})` : '';
     const count = brokerTrades.filter(t=>t.accountId===a.id).length;
     const isLegacy = a.broker_type==='manual_legacy';
     const statusColor = ss && ss.last_sync_status==='ok' ? 'var(--pos)' : ss && ss.last_sync_status ? 'var(--neg)' : 'var(--text-faint)';
@@ -2801,7 +2995,7 @@ function renderAccountsView(){
         <span class="acct-dot" style="background:${accountColor(a.id)};"></span>
         <div class="acct-row-main">
           <div class="acct-card-name">${a.account_label}${isLegacy?' <span class="tag" style="font-size:10px;">legacy</span>':''}</div>
-          <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.account_currency?' · '+a.account_currency:''}${a.balance?' · '+fmtMoney(Number(a.balance)):''}</div>
+          <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.account_currency?' · '+a.account_currency:''}${a.balance?' · '+fmtMoney(Number(a.balance)):''}${copyTag}</div>
         </div>
         <div class="acct-row-meta">
           ${isLegacy ? '' : `<span class="acct-sync" style="color:${statusColor};" title="Laatste sync: ${lastRun}">●</span>`}
@@ -2820,6 +3014,35 @@ function renderAccountsView(){
       : `<div class="acct-card-status">
           <span style="color:${statusColor};">●</span> Laatste sync: ${lastRun}
           ${ss && ss.last_sync_status && ss.last_sync_status!=='ok' ? `<span style="color:var(--neg);"> — ${ss.last_sync_status}</span>`:''}
+        </div>
+        <div class="be-setting">
+          <div class="be-setting-head">Copy-trading</div>
+          ${parentAcc ? (()=>{
+              const mine = brokerTrades.filter(t=>t.accountId===a.id);
+              const dup = mine.filter(t=>t.isCopy).length;
+              return `<div class="be-setting-desc">Dit account kopieert de trades van <strong>${parentAcc.account_label}</strong>.
+                  ${dup} van de ${mine.length} trades hier zijn herkend als kopie en tellen in je KPI's niet dubbel mee (die van het hoofdaccount tellen).
+                  Trades die alleen hier bestaan tellen gewoon mee. Notities schrijf je op het hoofdaccount.</div>
+                <div class="be-setting-row">
+                  <button type="button" class="btn secondary small" onclick="makePrimary('${a.id}')">Maak dit het hoofdaccount</button>
+                  <button type="button" class="btn secondary small" onclick="unlinkCopy('${a.id}')">Ontkoppelen</button>
+                </div>`;
+            })()
+          : kids.length ? `<div class="be-setting-desc">Hoofdaccount voor <strong>${kids.map(k=>k.account_label).join(', ')}</strong>.
+                Overschakelen naar een ander account (bv. als dit er niet meer is)? Open die kopie en kies
+                <em>Maak dit het hoofdaccount</em> — je notities en geschiedenis blijven behouden.</div>`
+          : (()=>{
+              const options = accounts.filter(x=>x.id!==a.id && !x.copy_of && x.broker_type!=='manual_legacy');
+              return options.length
+                ? `<div class="be-setting-desc">Kopieer je dezelfde trades naar meerdere accounts? Koppel dit account dan aan het account dat je journalt,
+                      zodat dezelfde trade niet dubbel meetelt in je KPI's.</div>
+                   <div class="be-setting-row">
+                     <label>Is een kopie van</label>
+                     <select id="copyOf-${a.id}">${options.map(o=>`<option value="${o.id}">${o.account_label}</option>`).join('')}</select>
+                     <button type="button" class="btn secondary small" onclick="saveCopyOf('${a.id}')">Koppelen</button>
+                   </div>`
+                : `<div class="be-setting-desc">Geen ander account om aan te koppelen.</div>`;
+            })()}
         </div>
         <div class="be-setting">
           <div class="be-setting-head">Accountbalans</div>
@@ -2909,6 +3132,58 @@ function toggleAccountOpen(id){
 }
 function toggleOffSection(){ offSectionOpen = !offSectionOpen; renderAccountsView(); }
 
+/* ---------- copy-trading actions ---------- */
+async function setCopyOf(accountId, targetId){
+  const { error } = await supabase.from('broker_accounts').update({ copy_of: targetId }).eq('id', accountId);
+  if(error) throw error;
+}
+async function saveCopyOf(accountId){
+  const sel = $('#copyOf-'+accountId);
+  const target = sel && sel.value;
+  if(!target) return;
+  const acc = accounts.find(a=>a.id===accountId), main = accounts.find(a=>a.id===target);
+  if(!acc || !main) return;
+  try{
+    await setCopyOf(accountId, target);
+    await loadAll();   // re-matches trades and moves any existing notes to the main trades
+    const mine = brokerTrades.filter(t=>t.accountId===accountId);
+    const dup = mine.filter(t=>t.isCopy).length;
+    showToast(`${acc.account_label} is nu een kopie van ${main.account_label} — ${dup} van ${mine.length} trades herkend ✓`);
+  }catch(e){
+    console.error('link failed', e);
+    showToast('Koppelen mislukt: ' + (e.message||'kolom ontbreekt? draai de migratie'));
+    await loadAll();
+  }
+}
+async function unlinkCopy(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return;
+  if(!confirm(`"${acc.account_label}" ontkoppelen?\n\nIn je KPI's tellen de trades van dit account en van het hoofdaccount dan weer allebei mee (dus dubbel als het dezelfde trades zijn).`)) return;
+  try{ await setCopyOf(accountId, null); showToast('Ontkoppeld ✓'); }
+  catch(e){ console.error('unlink failed', e); showToast('Ontkoppelen mislukt: '+(e.message||'')); }
+  await loadAll();
+}
+// Switch which account of the group is the one you journal and count.
+// Nothing is re-imported: every account already holds its own trades, matched
+// trades just change which side counts, and journal rows follow automatically.
+async function makePrimary(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  const old = acc && accounts.find(a=>a.id===acc.copy_of);
+  if(!acc || !old) return;
+  if(!confirm(`"${acc.account_label}" het hoofdaccount maken?\n\nVanaf nu tellen de trades van ${acc.account_label} in je KPI's en journal je daar.\nTrades die alleen op ${old.account_label} bestonden blijven meetellen, en je notities verhuizen mee.`)) return;
+  try{
+    const siblings = accounts.filter(x=>x.copy_of===old.id && x.id!==accountId);
+    await setCopyOf(accountId, null);            // new main first
+    await setCopyOf(old.id, accountId);          // old main becomes a copy
+    for(const s of siblings) await setCopyOf(s.id, accountId);
+    showToast(`${acc.account_label} is nu je hoofdaccount ✓`);
+  }catch(e){
+    console.error('switch failed', e);
+    showToast('Wisselen mislukt: ' + (e.message||''));
+  }
+  await loadAll();
+}
+
 // Switching an account off removes its trades from all KPIs (dashboard, coach,
 // win-rate, streaks). Nothing is deleted: the trades stay in the log and calendar.
 async function toggleAccountKpi(accountId){
@@ -2958,12 +3233,15 @@ async function deleteAccount(accountId){
   const acc = accounts.find(a=>a.id===accountId);
   if(!acc) return;
   const affected = brokerTrades.filter(t=>t.accountId===accountId);
-  const withNotes = affected.filter(t=>t.hasJournal).length;
+  // Notes that can move to a copy on another account survive the delete.
+  const rescue = rescueMoves(accountId);
+  const withNotes = Math.max(0, affected.filter(t=>t.journalId && t.hasJournal).length - rescue.length);
 
   const warning =
     `Account "${acc.account_label}" verwijderen?\n\n` +
     `Dit verwijdert ${affected.length} trade${affected.length===1?'':'s'}` +
-    (withNotes ? ` waarvan ${withNotes} met journal-notities` : '') + `.\n` +
+    (withNotes > 0 ? ` waarvan ${withNotes} met journal-notities` : '') + `.\n` +
+    (rescue.length ? `${rescue.length} journal-notitie${rescue.length===1?'':'s'} verhuis${rescue.length===1?'t':'en'} naar de kopie op je andere account en blijven behouden.\n` : '') +
     `Dit kan NIET ongedaan gemaakt worden.\n\n` +
     `Zit je alleen met een verkeerde naam? Gebruik dan "Hernoem" in plaats hiervan.\n\n` +
     `Typ de accountnaam om te bevestigen:`;
@@ -2976,6 +3254,14 @@ async function deleteAccount(accountId){
   }
 
   try{
+    // 1. Keep the notes that have a copy elsewhere.
+    if(rescue.length) await applyJournalMoves(rescue);
+    // 2. If this was the main account of a group, the next copy takes over.
+    const kids = accounts.filter(a=>a.copy_of===accountId);
+    if(kids.length){
+      await setCopyOf(kids[0].id, null);
+      for(const k of kids.slice(1)) await setCopyOf(k.id, kids[0].id);
+    }
     // broker_trades and trade_journals are removed by the cascade on the
     // foreign keys, so deleting the account is enough.
     const { error } = await supabase.from('broker_accounts').delete().eq('id', accountId);
@@ -3374,6 +3660,9 @@ window.toggleAccountKpi = toggleAccountKpi;
 window.logShowMore = logShowMore;
 window.toggleAccountOpen = toggleAccountOpen;
 window.toggleOffSection = toggleOffSection;
+window.saveCopyOf = saveCopyOf;
+window.unlinkCopy = unlinkCopy;
+window.makePrimary = makePrimary;
 window.deleteAccount = deleteAccount;
 window.recalcCommission = recalcCommission;
 window.doCsvImport = doCsvImport;
