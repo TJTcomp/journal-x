@@ -455,7 +455,31 @@
   .acct-sub{ font-size:10px; color:var(--text-faint); }
 
   /* Account cards (accounts view) */
-  .acct-card{ border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:12px; background:var(--surface-1); }
+  .acct-card{ border:1px solid var(--hairline); border-radius:12px; margin-bottom:8px; background:var(--surface-1); overflow:hidden; }
+  .acct-card.open{ border-color:var(--border); }
+  .acct-card.off .acct-row{ opacity:0.6; }
+  .acct-row{ display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; transition:background .14s var(--ease); }
+  .acct-row:hover{ background:color-mix(in srgb, var(--text) 4%, transparent); }
+  .acct-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .acct-row-main{ flex:1; min-width:0; }
+  .acct-row-main .acct-card-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .acct-row-meta{ display:flex; align-items:center; gap:12px; flex:none; }
+  .acct-row-count{ font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--accent-bright); white-space:nowrap; }
+  .acct-row-count span{ font-family:'Inter',sans-serif; font-size:9px; font-weight:400; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px; }
+  .acct-sync{ font-size:10px; }
+  .acct-chev{ display:inline-block; color:var(--text-faint); font-size:16px; line-height:1; transition:transform .18s var(--ease); }
+  .acct-card.open .acct-chev, .acct-section-head.open .acct-chev{ transform:rotate(90deg); }
+  .acct-body{ display:none; padding:4px 16px 16px; border-top:1px solid var(--hairline); }
+  .acct-card.open .acct-body{ display:block; }
+  .acct-actions{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .acct-section-head{ display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); margin:18px 0 8px; }
+  .acct-section-head.clickable{ cursor:pointer; user-select:none; }
+  .acct-section-count{ font-family:'JetBrains Mono',monospace; color:var(--text-faint); }
+  .acct-empty{ font-size:12.5px; color:var(--text-faint); padding:8px 2px; }
+  @media(max-width:560px){
+    .acct-row{ flex-wrap:wrap; }
+    .acct-row-meta{ width:100%; justify-content:space-between; padding-left:20px; }
+  }
   .acct-card-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
   .acct-card-name{ font-size:15px; font-weight:600; color:var(--text); }
   .acct-card-sub{ font-size:11px; color:var(--text-faint); margin-top:2px; }
@@ -936,6 +960,8 @@ function setActiveAccount(id){
 }
 let editingJournalTradeId = null;
 let charts = {};
+const openAccounts = new Set();   // account cards currently expanded in the Accounts tab
+let offSectionOpen = false;       // the "Uitgezet" group in the Accounts tab
 
 /* ---------- LAZY VIEW RENDERING ----------
    Dashboard, trade log and coach all depend on the same data, but you only ever
@@ -1508,22 +1534,28 @@ $$('.navbtn').forEach(b=> b.addEventListener('click', ()=> switchView(b.dataset.
 function renderAccountPicker(){
   const el = $('#accountPicker');
   if(!el) return;
-  if(accounts.length===0){ el.innerHTML=''; el.style.display='none'; return; }
-  // The remembered account may have been removed since last visit.
-  if(activeAccountId !== 'all' && !accounts.some(a=>a.id===activeAccountId)){
+  // Accounts you switched off don't appear here at all: they are out of the KPIs,
+  // so there is nothing on the dashboard to filter them by.
+  const visible = accounts.filter(a=>!a.excluded_from_stats);
+  if(visible.length===0){
+    if(activeAccountId !== 'all') setActiveAccount('all');
+    el.innerHTML=''; el.style.display='none'; return;
+  }
+  // The remembered account may have been removed or switched off since last visit.
+  if(activeAccountId !== 'all' && !visible.some(a=>a.id===activeAccountId)){
     setActiveAccount('all');
   }
   el.style.display='flex';
-  const chip = (id, label, sub, off)=>{
+  const chip = (id, label, sub)=>{
     const active = activeAccountId===id;
-    return `<div class="acct-chip${active?' active':''}" data-acct="${id}"${off?' style="opacity:0.5;" title="Uitgezet: telt niet mee in de KPI\'s"':''}>
+    return `<div class="acct-chip${active?' active':''}" data-acct="${id}">
       <span class="acct-label">${label}</span>${sub?`<span class="acct-sub">${sub}</span>`:''}</div>`;
   };
-  let html = chip('all', 'Alle accounts', brokerTrades.length+' trades');
-  accounts.forEach(a=>{
+  const off = offAccountIds();
+  let html = chip('all', 'Alle accounts', brokerTrades.filter(t=>!off.has(t.accountId)).length+' trades');
+  visible.forEach(a=>{
     const count = brokerTrades.filter(t=>t.accountId===a.id).length;
-    const off = !!a.excluded_from_stats;
-    html += chip(a.id, a.account_label, count+' trades'+(off?' · uit KPI\'s':''), off);
+    html += chip(a.id, a.account_label, count+' trades');
   });
   el.innerHTML = html;
   el.querySelectorAll('.acct-chip').forEach(c=> c.addEventListener('click', ()=>{
@@ -2754,27 +2786,35 @@ function renderAccountsView(){
     el.innerHTML = `<div class="empty" style="padding:24px 0;"><div class="big">Nog geen account gekoppeld</div>Start de MT5 sync-service op je pc (zie handleiding) — je account verschijnt hier automatisch zodra de eerste sync draait.</div>`;
     return;
   }
-  let html = '';
-  accounts.forEach(a=>{
+  const cardHtml = (a)=>{
     const ss = syncStates[a.id];
+    const isOpen = openAccounts.has(a.id);
+    const isOff = !!a.excluded_from_stats;
     const count = brokerTrades.filter(t=>t.accountId===a.id).length;
     const isLegacy = a.broker_type==='manual_legacy';
     const statusColor = ss && ss.last_sync_status==='ok' ? 'var(--pos)' : ss && ss.last_sync_status ? 'var(--neg)' : 'var(--text-faint)';
     const lastRun = ss && ss.last_sync_run_at ? fmtDateTime(ss.last_sync_run_at) : 'nog niet';
-    html += `<div class="acct-card">
-      <div class="acct-card-top">
-        <div>
+    // One compact row per account; the details sit behind a click so the page
+    // stays short however many challenges and funded accounts pile up.
+    return `<div class="acct-card${isOpen?' open':''}${isOff?' off':''}" data-acct="${a.id}">
+      <div class="acct-row" role="button" tabindex="0" onclick="toggleAccountOpen('${a.id}')">
+        <span class="acct-dot" style="background:${accountColor(a.id)};"></span>
+        <div class="acct-row-main">
           <div class="acct-card-name">${a.account_label}${isLegacy?' <span class="tag" style="font-size:10px;">legacy</span>':''}</div>
-          <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.external_account_id?' · '+a.external_account_id:''}${a.account_currency?' · '+a.account_currency:''}${a.balance?' · balans '+fmtMoney(Number(a.balance)):''}</div>
+          <div class="acct-card-sub">${a.broker_type.toUpperCase()}${a.account_currency?' · '+a.account_currency:''}${a.balance?' · '+fmtMoney(Number(a.balance)):''}</div>
         </div>
-        <div style="display:flex; align-items:flex-start; gap:12px;">
-          <div class="acct-card-count">${count}<span>trades</span></div>
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            <button type="button" class="btn secondary small" onclick="toggleAccountKpi('${a.id}')" title="${a.excluded_from_stats ? 'Telt weer mee in je KPI\'s' : 'Haal dit account uit je KPI\'s (trades blijven zichtbaar in de journal)'}">${a.excluded_from_stats ? '⏻ Inschakelen' : '⏻ Uitzetten'}</button>
-            <button type="button" class="btn secondary small" onclick="renameAccount('${a.id}')" title="Naam wijzigen">Hernoem</button>
-            <button type="button" class="btn secondary small" onclick="deleteAccount('${a.id}')" title="Account verwijderen" style="color:var(--neg);">Verwijder</button>
-          </div>
+        <div class="acct-row-meta">
+          ${isLegacy ? '' : `<span class="acct-sync" style="color:${statusColor};" title="Laatste sync: ${lastRun}">●</span>`}
+          <span class="acct-row-count">${count} <span>trades</span></span>
+          <button type="button" class="btn secondary small" onclick="event.stopPropagation(); toggleAccountKpi('${a.id}')" title="${isOff ? 'Telt weer mee in je KPI\'s' : 'Haal dit account uit je KPI\'s (trades blijven zichtbaar in de journal)'}">${isOff ? '⏻ Inschakelen' : '⏻ Uitzetten'}</button>
+          <span class="acct-chev">›</span>
         </div>
+      </div>
+      <div class="acct-body">
+      <div class="acct-actions">
+        <span class="acct-card-sub" style="margin:0 auto 0 0;">${a.external_account_id ? 'ID '+a.external_account_id : ''}</span>
+        <button type="button" class="btn secondary small" onclick="renameAccount('${a.id}')" title="Naam wijzigen">Hernoem</button>
+        <button type="button" class="btn secondary small" onclick="deleteAccount('${a.id}')" title="Account verwijderen" style="color:var(--neg);">Verwijder</button>
       </div>
       ${isLegacy ? `<div class="acct-card-status" style="color:var(--text-faint);">Handmatige legacy-trades — niet meegerekend in broker-KPI's.</div>`
       : `<div class="acct-card-status">
@@ -2846,10 +2886,28 @@ function renderAccountsView(){
           </div>
           <button type="button" class="btn secondary small" onclick="saveDefaultRisk('${a.id}')">Opslaan</button>
         </div>`}
+      </div>
     </div>`;
-  });
+  };
+  const activeList = accounts.filter(a=>!a.excluded_from_stats);
+  const offList = accounts.filter(a=>a.excluded_from_stats);
+  let html = `<div class="acct-section-head"><span>Actief</span><span class="acct-section-count">${activeList.length}</span></div>`;
+  html += activeList.length ? activeList.map(cardHtml).join('') : `<div class="acct-empty">Geen actieve accounts — alles staat uit.</div>`;
+  // Switched-off accounts (blown challenges, old evals) are tucked away, collapsed.
+  if(offList.length){
+    html += `<div class="acct-section-head clickable${offSectionOpen?' open':''}" onclick="toggleOffSection()">
+      <span><span class="acct-chev">›</span> Uitgezet — telt niet mee in KPI's</span><span class="acct-section-count">${offList.length}</span></div>`;
+    if(offSectionOpen) html += offList.map(cardHtml).join('');
+  }
   el.innerHTML = html;
 }
+
+function toggleAccountOpen(id){
+  if(openAccounts.has(id)) openAccounts.delete(id); else openAccounts.add(id);
+  const card = document.querySelector(`.acct-card[data-acct="${id}"]`);
+  if(card) card.classList.toggle('open', openAccounts.has(id));
+}
+function toggleOffSection(){ offSectionOpen = !offSectionOpen; renderAccountsView(); }
 
 // Switching an account off removes its trades from all KPIs (dashboard, coach,
 // win-rate, streaks). Nothing is deleted: the trades stay in the log and calendar.
@@ -3314,6 +3372,8 @@ window.saveCommission = saveCommission;
 window.renameAccount = renameAccount;
 window.toggleAccountKpi = toggleAccountKpi;
 window.logShowMore = logShowMore;
+window.toggleAccountOpen = toggleAccountOpen;
+window.toggleOffSection = toggleOffSection;
 window.deleteAccount = deleteAccount;
 window.recalcCommission = recalcCommission;
 window.doCsvImport = doCsvImport;
