@@ -532,6 +532,59 @@
   .cc-stats{ font-size:11px; color:var(--text-dim); }
   @media(max-width:820px){ .coach-cols{ grid-template-columns:1fr; } }
 
+  /* ---------- VAULT (business side: spend, payouts, ROI) ---------- */
+  .vault-toolbar{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px;}
+  .vault-note{font-size:11px; color:var(--text-faint);}
+  .vault-hero{
+    display:grid; grid-template-columns:1.25fr 1fr; gap:40px; align-items:center;
+    padding:30px 32px; margin-bottom:22px; border-radius:var(--radius-lg); border:1px solid var(--hairline);
+    background:radial-gradient(900px 260px at 0% 0%, var(--hero-glow, var(--accent-glow)), transparent 70%), var(--surface-0);
+  }
+  .vault-hero.pos{--hero-glow:var(--pos-glow); border-color:var(--pos-dim);}
+  .vault-hero.neg{--hero-glow:var(--neg-glow);}
+  .vault-eyebrow{font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:12px;}
+  .vault-net{font-family:'Space Grotesk',sans-serif; font-size:58px; font-weight:700; letter-spacing:-1.8px; line-height:1; word-break:break-word;}
+  .vault-net.pos{color:var(--pos);} .vault-net.neg{color:var(--neg);}
+  .vault-sub{margin-top:14px; font-size:13px; color:var(--text-dim); display:flex; gap:6px 20px; flex-wrap:wrap;}
+  .vault-sub b{color:var(--text); font-weight:600;}
+  .vault-meter-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; gap:10px;}
+  .vault-meter-head span:first-child{font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); font-weight:600;}
+  .vault-meter-pct{font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; color:var(--text);}
+  .vault-meter-track{height:10px; background:var(--surface-2); border-radius:6px; overflow:hidden;}
+  .vault-meter-fill{height:100%; background:var(--accent-bright); border-radius:6px; transition:width .45s var(--ease);}
+  .vault-meter-fill.done{background:var(--pos);}
+  .vault-meter-cap{margin-top:10px; font-size:12px; color:var(--text-dim); line-height:1.5;}
+  #vaultKpi1 .kpi-sub, #vaultKpi2 .kpi-sub{margin-top:6px; line-height:1.4;}
+  .vault-insights{list-style:none; display:flex; flex-direction:column; gap:13px;}
+  .vault-insights li{display:flex; gap:11px; align-items:flex-start; font-size:12.5px; color:var(--text-dim); line-height:1.55;}
+  .vault-insights li b{color:var(--text); font-weight:600;}
+  .vault-insights .dot{width:7px; height:7px; border-radius:50%; margin-top:7px; flex:none; background:var(--text-ghost);}
+  .vault-insights .dot.pos{background:var(--pos);} .vault-insights .dot.neg{background:var(--neg);} .vault-insights .dot.be{background:var(--be);} .vault-insights .dot.acc{background:var(--accent-bright);}
+  .vbar-row{display:grid; grid-template-columns:132px 1fr 112px; gap:12px; align-items:center; margin-bottom:13px;}
+  .vbar-row:last-child{margin-bottom:0;}
+  .vbar-label{font-size:12.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .vbar-track{height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;}
+  .vbar-fill{height:100%; background:var(--accent); border-radius:4px;}
+  .vbar-val{font-family:'JetBrains Mono',monospace; font-size:12px; text-align:right; color:var(--text);}
+  .vbar-val span{color:var(--text-faint); font-size:10.5px; margin-left:5px;}
+  .chips-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .vault-missing{margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline);}
+  .vault-missing .lbl{font-size:11px; color:var(--text-faint); margin-bottom:9px; line-height:1.5;}
+  .vault-scroll{overflow-x:auto;}
+  .vault-scroll table{min-width:440px;}
+  .vault-scroll th, .vault-scroll td{padding-left:8px; padding-right:8px;}
+  .vault-scroll th:first-child, .vault-scroll td:first-child{padding-left:2px;}
+  .vault-empty{border:1px dashed var(--border); border-radius:var(--radius-lg); padding:44px 28px; text-align:center; background:var(--surface-0);}
+  .vault-empty .big{font-family:'Space Grotesk',sans-serif; font-size:19px; color:var(--text); margin-bottom:8px;}
+  .vault-empty p{font-size:13px; color:var(--text-dim); max-width:470px; margin:0 auto 20px; line-height:1.6;}
+  @media(max-width:900px){
+    .vault-hero{grid-template-columns:1fr; gap:24px; padding:24px 22px;}
+    .vault-net{font-size:44px;}
+  }
+  @media(max-width:560px){
+    .vbar-row{grid-template-columns:96px 1fr 92px; gap:9px;}
+  }
+
 </style>
 </head>
 <body>
@@ -577,6 +630,11 @@
   <div class="navbtn" data-view="coach">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 6 0v-1a3 3 0 0 0 3-3 3 3 0 0 0 0-6 3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z"/></svg>
     AI Coach
+  </div>
+  <div class="nav-label" style="margin-top:22px;">Business</div>
+  <div class="navbtn" data-view="vault">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 7.5V9M12 15v1.5M7.5 12H9M15 12h1.5"/><path d="M7 20v1.5M17 20v1.5"/></svg>
+    Vault
   </div>
   <div class="nav-label" style="margin-top:22px;">Broker</div>
   <div class="navbtn" data-view="accounts">
@@ -705,6 +763,96 @@
     </div>
   </div>
 
+  <!-- VAULT -->
+  <div class="view" id="view-vault">
+    <div class="topbar">
+      <div>
+        <h1>Vault</h1>
+        <div class="sub">Je prop-business: wat erin gaat, wat eruit komt — en wat er écht overblijft.</div>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="btn secondary" onclick="openFinModal('expense','challenge')">+ Uitgave</button>
+        <button type="button" class="btn" onclick="openFinModal('income','payout')">+ Payout</button>
+      </div>
+    </div>
+    <div class="view-body">
+      <div id="vaultBanner" class="be-warn" style="display:none; margin-bottom:16px;"></div>
+      <div id="vaultEmpty" style="display:none;"></div>
+
+      <div id="vaultContent">
+        <div class="vault-toolbar">
+          <div class="multiselect" id="vaultRange" data-single="true" style="margin:0;">
+            <div class="chip selected" data-val="all">Alles</div>
+            <div class="chip" data-val="year">Dit jaar</div>
+            <div class="chip" data-val="90d">Laatste 90 dagen</div>
+            <div class="chip" data-val="month">Deze maand</div>
+          </div>
+          <div class="vault-note">Alle bedragen in USD · geld dat je écht betaalde of ontving, los van je gesimuleerde trades</div>
+        </div>
+
+        <div class="vault-hero" id="vaultHero"></div>
+
+        <div class="section-head"><h3>Geldstroom</h3><div class="rule"></div></div>
+        <div class="kpi-grid" id="vaultKpi1"></div>
+        <div class="section-head" style="margin-top:26px;"><h3>Accounts &amp; payouts</h3><div class="rule"></div></div>
+        <div class="kpi-grid" id="vaultKpi2"></div>
+
+        <div class="grid-2 wide-left" style="margin-top:22px;">
+          <div class="panel">
+            <h2>Cashflow-curve <span style="font-weight:400; color:var(--text-faint); font-size:12px;">(cumulatief netto)</span></h2>
+            <div class="desc">Waar je staat in de tijd. Zodra de lijn boven de nul komt, heb je al je uitgaven terugverdiend.</div>
+            <div style="height:260px;"><canvas id="vaultCash" role="img" aria-label="Cumulatieve netto cashflow over tijd"></canvas></div>
+          </div>
+          <div class="panel">
+            <h2>Slimme samenvatting</h2>
+            <div class="desc">Automatisch afgeleid uit je boekingen.</div>
+            <ul class="vault-insights" id="vaultInsights"></ul>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h2>Per maand</h2>
+            <div class="desc">Ontvangen boven de lijn, uitgegeven eronder.</div>
+            <div style="height:240px;"><canvas id="vaultMonths" role="img" aria-label="Ontvangen en uitgegeven per maand"></canvas></div>
+          </div>
+          <div class="panel">
+            <h2>Waar gaat je geld naartoe?</h2>
+            <div class="desc">Uitgaven per categorie.</div>
+            <div id="vaultCats"></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h2>Per prop firm</h2>
+            <div class="desc">Welke firma's je geld opleveren — en welke niet.</div>
+            <div class="vault-scroll"><table id="vaultFirms"></table></div>
+          </div>
+          <div class="panel">
+            <h2>Per account</h2>
+            <div class="desc">Gekoppeld aan boekingen. Het handelsresultaat komt uit je journal.</div>
+            <div class="vault-scroll"><table id="vaultAccts"></table></div>
+            <div class="vault-missing" id="vaultMissing" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div class="section-head" style="margin-top:10px;"><h3>Boekingen</h3><div class="rule"></div></div>
+        <div class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+            <div class="multiselect" id="vaultKind" data-single="true" style="margin:0;">
+              <div class="chip selected" data-val="all">Alles</div>
+              <div class="chip" data-val="expense">Uitgaven</div>
+              <div class="chip" data-val="income">Inkomsten</div>
+            </div>
+            <span class="vault-note" id="vaultLedgerCount"></span>
+          </div>
+          <div class="vault-scroll"><table id="vaultLedger"></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ACCOUNTS -->
   <div class="view" id="view-accounts">
     <div class="topbar">
@@ -795,6 +943,29 @@
 </div>
 
 <!-- JOURNAL MODAL -->
+<div id="finModalBg" class="modal-bg" style="display:none;" onclick="closeFinFromBackdrop(event)">
+  <div class="modal" style="max-width:520px;">
+    <span class="modal-close" onclick="closeFinModal()">×</span>
+    <h2 id="finTitle" style="font-family:'Space Grotesk',sans-serif; font-size:18px; margin-bottom:4px;">Nieuwe boeking</h2>
+    <div style="font-size:12px; color:var(--text-faint); margin-bottom:20px;">Bedragen in USD, zoals de prijs bij de prop firm.</div>
+    <div class="field" style="margin-bottom:16px;"><label>Soort</label><div class="chips-row" id="finKind"></div></div>
+    <div class="field" style="margin-bottom:16px;"><label>Categorie</label><div class="chips-row" id="finCat"></div></div>
+    <div class="form-row c2">
+      <div class="field"><label>Bedrag ($)</label><input type="number" step="0.01" min="0" id="finAmount" placeholder="bv. 149"></div>
+      <div class="field"><label>Datum</label><input type="date" id="finDate"></div>
+    </div>
+    <div class="form-row c2">
+      <div class="field"><label>Prop firm</label><input type="text" id="finFirm" list="finFirms" placeholder="bv. Lucid"><datalist id="finFirms"></datalist></div>
+      <div class="field"><label>Account (optioneel)</label><select id="finAccount"></select></div>
+    </div>
+    <div class="field"><label>Notitie (optioneel)</label><input type="text" id="finNote" placeholder="bv. 25K challenge, kortingscode"></div>
+    <div style="display:flex; gap:10px; margin-top:22px;">
+      <button type="button" class="btn" id="finSaveBtn" style="flex:1;" onclick="saveFinEntry()">Opslaan</button>
+      <button type="button" class="btn danger" id="finDeleteBtn" style="display:none;" onclick="deleteFinEntry()">Verwijderen</button>
+    </div>
+  </div>
+</div>
+
 <div id="journalModalBg" class="modal-bg" style="display:none;" onclick="closeJournalFromBackdrop(event)">
   <div class="modal" style="max-width:760px;" onclick="event.stopPropagation()">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
@@ -968,7 +1139,7 @@ let offSectionOpen = false;       // the "Uitgezet" group in the Accounts tab
    look at one at a time. When data or the account filter changes we just mark
    every view dirty and render the one on screen; the others render the moment
    you open them. Rebuilding all three on every switch was the main source of lag. */
-const viewDirty = { dashboard:true, log:true, coach:true };
+const viewDirty = { dashboard:true, log:true, coach:true, vault:true };
 function currentViewName(){
   const v = document.querySelector('.view.active');
   return v ? v.id.replace(/^view-/, '') : 'dashboard';
@@ -980,10 +1151,11 @@ function flushView(name){
     if(name==='dashboard') renderDashboard();
     else if(name==='log') renderLog();
     else if(name==='coach') renderCoach();
+    else if(name==='vault') renderVault();
   }catch(e){ console.error('render '+name, e); }
 }
 function refreshViews(){
-  viewDirty.dashboard = viewDirty.log = viewDirty.coach = true;
+  viewDirty.dashboard = viewDirty.log = viewDirty.coach = viewDirty.vault = true;
   flushView(currentViewName());
 }
 
@@ -1613,7 +1785,7 @@ async function refreshNow(){
 
 async function loadAll(){
   try{
-    const [accRes, btRes, jRes, ssRes, shotRes] = await Promise.all([
+    const [accRes, btRes, jRes, ssRes, shotRes, finRes] = await Promise.all([
       supabase.from('broker_accounts').select('*').order('created_at',{ascending:true}),
       supabase.from('broker_trades').select('id,account_id,source,external_id,symbol,direction,volume,open_time,close_time,open_price,close_price,gross_pnl,commission,swap,net_pnl,initial_sl_price').order('close_time',{ascending:false}),
       supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd,excluded,exclude_reason'),
@@ -1622,6 +1794,9 @@ async function loadAll(){
       // images themselves are far too heavy to pull for every trade up front.
       supabase.from('trade_journals').select('broker_trade_id')
         .or('entry_screenshot.not.is.null,exit_screenshot.not.is.null'),
+      // Vault bookkeeping. A missing table (migration not run yet) must never
+      // break the rest of the app, so its error is kept aside, not thrown.
+      supabase.from('finance_entries').select('*').order('entry_date',{ascending:false}),
     ]);
     if(accRes.error) throw accRes.error;
     if(btRes.error) throw btRes.error;
@@ -1634,6 +1809,8 @@ async function loadAll(){
     brokerTrades = (btRes.data||[]).map(bt=>mergeTradeRow(bt, journalByTrade[bt.id], withShots.has(bt.id)));
     syncStates = {};
     (ssRes.data||[]).forEach(s=>{ syncStates[s.account_id]=s; });
+    financeError = finRes && finRes.error ? (finRes.error.message || 'onbekende fout') : null;
+    financeEntries = financeError ? [] : ((finRes && finRes.data) || []).map(mapFinanceRow);
 
     // Set account currency from the first non-legacy connected account.
     const primary = accounts.find(a=>a.account_currency);
@@ -3611,6 +3788,524 @@ function setupJournalUpload(dropId, inputId, which){
 }
 
 /* ============================================================
+   VAULT — the business side of prop trading
+   What trading costs you (challenges, resets, activations, tools) against
+   what it pays (payouts), kept apart from the simulated P&L of your trades.
+   ============================================================ */
+const EXPENSE_CATS = [
+  { key:'challenge',    label:'Challenge / account' },
+  { key:'reset',        label:'Reset' },
+  { key:'activation',   label:'Activatie' },
+  { key:'subscription', label:'Data / abonnement' },
+  { key:'other',        label:'Overig' },
+];
+const INCOME_CATS = [
+  { key:'payout', label:'Payout' },
+  { key:'refund', label:'Terugbetaling' },
+  { key:'other',  label:'Overig' },
+];
+function catLabel(kind, key){
+  const c = (kind==='income' ? INCOME_CATS : EXPENSE_CATS).find(x=>x.key===key);
+  return c ? c.label : key;
+}
+const VAULT_RANGE_LABEL = { all:'', year:' · dit jaar', '90d':' · laatste 90 dagen', month:' · deze maand' };
+const _dtfMonth = new Intl.DateTimeFormat('nl-BE', { month:'short', year:'2-digit' });
+
+let financeEntries = [];
+let financeError = null;
+let vaultLedgerLimit = 25;
+
+function escHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function mapFinanceRow(r){
+  return { id:r.id, kind:r.kind, category:r.category, amount:Number(r.amount)||0,
+           date:String(r.entry_date||'').slice(0,10), firm:r.firm||'', accountId:r.account_id||null, note:r.note||'' };
+}
+function localDateStr(d){
+  const p = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function vaultRangeFrom(range){
+  const now = new Date();
+  if(range==='year')  return `${now.getFullYear()}-01-01`;
+  if(range==='month') return localDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+  if(range==='90d'){ const d = new Date(now); d.setDate(d.getDate()-90); return localDateStr(d); }
+  return null;
+}
+function dayParts(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
+function fmtDay(str){ return _dtfDate.format(dayParts(str)); }
+function fmtMonthKey(key){ const [y,m] = key.split('-').map(Number); return _dtfMonth.format(new Date(y, m-1, 1)); }
+function daysBetween(a, b){ return Math.round((dayParts(b) - dayParts(a)) / 864e5); }
+function fmtMoneyShort(v){
+  const a = Math.abs(v), s = v<0 ? '-' : '';
+  if(a >= 1e6) return s+'$'+(a/1e6).toFixed(1)+'M';
+  if(a >= 1000) return s+'$'+(a/1000).toFixed(a>=10000?0:1)+'k';
+  return s+'$'+Math.round(a);
+}
+function fmtPct(v){ return (v>=0?'+':'-') + Math.abs(v).toFixed(Math.abs(v)<10?1:0) + '%'; }
+function vaultSum(list){ return list.reduce((a,e)=>a+e.amount, 0); }
+function cmpDate(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }
+
+// Everything the page shows is derived here from a list of entries — one pure
+// function, so the numbers can't drift between tiles, charts and tables.
+function computeVault(list){
+  const todayStr = localDateStr(new Date());
+  const exp = list.filter(e=>e.kind==='expense');
+  const inc = list.filter(e=>e.kind==='income');
+  const payouts = inc.filter(e=>e.category==='payout').sort(cmpDate);
+  const spent = vaultSum(exp), received = vaultSum(inc), net = received - spent;
+  const V = {
+    list, exp, inc, payouts, spent, received, net,
+    roi: spent>0 ? net/spent*100 : null,
+    recovered: spent>0 ? received/spent*100 : null,
+    challenges: exp.filter(e=>e.category==='challenge'),
+    resets: exp.filter(e=>e.category==='reset'),
+  };
+  V.resetShare = spent>0 ? vaultSum(V.resets)/spent*100 : 0;
+  V.avgPayout = payouts.length ? vaultSum(payouts)/payouts.length : 0;
+  V.maxPayout = payouts.reduce((m,e)=>Math.max(m,e.amount), 0);
+  V.costPerAccount = V.challenges.length ? spent/V.challenges.length : null;
+  V.costPerPayout = payouts.length ? spent/payouts.length : null;
+  V.lastPayout = payouts.length ? payouts[payouts.length-1] : null;
+  V.daysSincePayout = V.lastPayout ? Math.max(0, daysBetween(V.lastPayout.date, todayStr)) : null;
+  if(payouts.length > 1){
+    let tot = 0;
+    for(let i=1; i<payouts.length; i++) tot += daysBetween(payouts[i-1].date, payouts[i].date);
+    V.avgGapDays = tot/(payouts.length-1);
+  } else V.avgGapDays = null;
+
+  // Months, gaps filled so a quiet month shows up as an empty column.
+  const sorted = [...list].sort(cmpDate);
+  V.months = []; V.cum = [];
+  if(sorted.length){
+    const todayKey = todayStr.slice(0,7);
+    const lastKey = sorted[sorted.length-1].date.slice(0,7);
+    const endKey = lastKey > todayKey ? lastKey : todayKey;
+    let [y,m] = sorted[0].date.slice(0,7).split('-').map(Number);
+    const [ey,em] = endKey.split('-').map(Number);
+    while(y < ey || (y===ey && m<=em)){
+      V.months.push({ key:`${y}-${String(m).padStart(2,'0')}`, exp:0, inc:0 });
+      if(++m > 12){ m = 1; y++; }
+    }
+    const byKey = {}; V.months.forEach(mo=>{ byKey[mo.key] = mo; });
+    sorted.forEach(e=>{ const mo = byKey[e.date.slice(0,7)]; if(mo){ if(e.kind==='expense') mo.exp += e.amount; else mo.inc += e.amount; } });
+    // Cumulative net, one point per day.
+    let run = 0;
+    sorted.forEach((e,i)=>{
+      run += e.kind==='income' ? e.amount : -e.amount;
+      const next = sorted[i+1];
+      if(!next || next.date !== e.date) V.cum.push({ date:e.date, v:run });
+    });
+  }
+  V.avgNetPerMonth = V.months.length ? net/V.months.length : 0;
+
+  // Where the money goes.
+  const cats = {};
+  exp.forEach(e=>{ cats[e.category] = (cats[e.category]||0) + e.amount; });
+  V.cats = Object.keys(cats).map(k=>({ key:k, amount:cats[k] })).sort((a,b)=>b.amount-a.amount);
+
+  // Per firm.
+  const firms = {};
+  list.forEach(e=>{
+    const k = e.firm || 'Onbekend';
+    const f = firms[k] || (firms[k] = { firm:k, spent:0, received:0, challenges:0 });
+    if(e.kind==='expense'){ f.spent += e.amount; if(e.category==='challenge') f.challenges++; }
+    else f.received += e.amount;
+  });
+  V.firms = Object.values(firms).map(f=>({ ...f, net:f.received-f.spent, roi: f.spent>0 ? (f.received-f.spent)/f.spent*100 : null }))
+                .sort((a,b)=>b.net-a.net);
+
+  // Per account (only entries linked to one).
+  const accts = {};
+  list.forEach(e=>{
+    if(!e.accountId) return;
+    const a = accts[e.accountId] || (accts[e.accountId] = { id:e.accountId, spent:0, received:0, payouts:0 });
+    if(e.kind==='expense') a.spent += e.amount;
+    else { a.received += e.amount; if(e.category==='payout') a.payouts++; }
+  });
+  V.accts = Object.values(accts).map(a=>({ ...a, net:a.received-a.spent })).sort((a,b)=>b.net-a.net);
+  V.unlinkedSpent = vaultSum(exp.filter(e=>!e.accountId));
+
+  // Hit rate: of the accounts you paid for, how many ever paid you back.
+  const paidFor = new Set(exp.filter(e=>e.accountId).map(e=>e.accountId));
+  const paidOut = new Set(payouts.filter(e=>e.accountId).map(e=>e.accountId));
+  V.hitTotal = paidFor.size;
+  V.hitCount = [...paidFor].filter(id=>paidOut.has(id)).length;
+
+  // Break-even outlook from the last 90 days of cash flow.
+  V.m90 = null; V.projection = null;
+  const from90 = vaultRangeFrom('90d');
+  const recent = list.filter(e=>e.date >= from90);
+  if(recent.length){
+    V.m90 = (vaultSum(recent.filter(e=>e.kind==='income')) - vaultSum(recent.filter(e=>e.kind==='expense'))) / 3;
+    if(net < 0 && V.m90 > 0) V.projection = Math.max(1, Math.ceil(-net / V.m90));
+  }
+  return V;
+}
+
+function vaultInsights(V){
+  const out = [];
+  if(V.spent > 0){
+    if(V.net >= 0) out.push({ tone:'pos', html:`Je bent <b>winstgevend</b>: ${fmtMoney(V.net)} boven je totale uitgaven (ROI ${fmtPct(V.roi)}).` });
+    else out.push({ tone:'be', html:`Je hebt <b>${Math.round(V.recovered)}%</b> van je uitgaven terugverdiend — nog ${fmtMoney(-V.net)} tot break-even.` });
+  }
+  if(V.net < 0 && V.projection !== null){
+    out.push({ tone:'acc', html:`Aan je tempo van de laatste 90 dagen (${fmtMoneySigned(V.m90)} per maand) ben je over ongeveer <b>${V.projection} ${V.projection===1?'maand':'maanden'}</b> break-even.` });
+  } else if(V.net < 0 && V.m90 !== null && V.m90 <= 0){
+    out.push({ tone:'neg', html:`De laatste 90 dagen gaf er meer uit dan er binnenkwam (${fmtMoneySigned(V.m90)} per maand) — er is nog geen prognose voor break-even.` });
+  }
+  const top = V.cats[0];
+  if(top && V.spent > 0) out.push({ tone:'dim', html:`Grootste kostenpost: <b>${catLabel('expense', top.key)}</b> — ${Math.round(top.amount/V.spent*100)}% van je uitgaven (${fmtMoney(top.amount)}).` });
+  if(V.resets.length >= 2 && V.resetShare >= 25){
+    out.push({ tone:'neg', html:`Resets kosten je <b>${Math.round(V.resetShare)}%</b> van je uitgaven (${V.resets.length}×). Daar valt het meeste geld te besparen.` });
+  }
+  const active = V.months.filter(m=>m.exp>0 || m.inc>0);
+  if(active.length >= 2){
+    const best = [...active].sort((a,b)=>(b.inc-b.exp)-(a.inc-a.exp))[0];
+    const worst = [...active].sort((a,b)=>(a.inc-a.exp)-(b.inc-b.exp))[0];
+    if(best.key !== worst.key) out.push({ tone:'dim', html:`Beste maand: <b>${fmtMonthKey(best.key)}</b> (${fmtMoneySigned(best.inc-best.exp)}) · slechtste: <b>${fmtMonthKey(worst.key)}</b> (${fmtMoneySigned(worst.inc-worst.exp)}).` });
+  }
+  if(V.avgGapDays !== null) out.push({ tone:'dim', html:`Gemiddeld <b>${Math.round(V.avgGapDays)} dagen</b> tussen je payouts.` });
+  const withSpend = V.firms.filter(f=>f.spent>0 && f.roi!==null);
+  if(withSpend.length >= 2){
+    const b = [...withSpend].sort((x,y)=>y.roi-x.roi)[0];
+    out.push({ tone: b.roi>=0?'pos':'dim', html:`Beste ROI per firma: <b>${escHtml(b.firm)}</b> (${fmtPct(b.roi)}).` });
+  }
+  return out.slice(0, 6);
+}
+
+function vaultFiltered(){
+  const from = vaultRangeFrom(getSelectedChips('vaultRange')[0] || 'all');
+  return { from, list: from ? financeEntries.filter(e=>e.date >= from) : financeEntries.slice() };
+}
+
+function renderVault(){
+  viewDirty.vault = false;
+  const content = $('#vaultContent'), empty = $('#vaultEmpty'), banner = $('#vaultBanner');
+  if(!content) return;
+
+  if(financeError){
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>De Vault-tabel ontbreekt nog.</strong> Draai <code>supabase_migration_finance.sql</code> in je Supabase SQL Editor en ververs daarna deze pagina. <span style="color:var(--text-faint);">(${escHtml(financeError)})</span>`;
+  } else banner.style.display = 'none';
+
+  const unlinked = accounts.filter(a=>a.broker_type!=='manual_legacy' && !financeEntries.some(e=>e.accountId===a.id));
+  const missingHtml = unlinked.length ? `
+    <div class="lbl">Nog niet geboekt — deze accounts uit je journal hebben nog geen uitgave of payout:</div>
+    <div class="chips-row">${unlinked.map(a=>`<span class="chip" onclick="openFinModal('expense','challenge','','${a.id}')">+ ${escHtml(a.account_label)}</span>`).join('')}</div>` : '';
+
+  if(financeEntries.length === 0){
+    content.style.display = 'none';
+    empty.style.display = 'block';
+    empty.innerHTML = `<div class="vault-empty">
+      <div class="big">Hier komt je prop-business te staan</div>
+      <p>Boek wat je uitgeeft aan challenges, resets en activaties, en wat je ontvangt aan payouts.
+         Dan zie je meteen je netto resultaat, ROI en wanneer je break-even bent.</p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button type="button" class="btn secondary" onclick="openFinModal('expense','challenge')">+ Uitgave</button>
+        <button type="button" class="btn" onclick="openFinModal('income','payout')">+ Payout</button>
+      </div>
+      ${unlinked.length ? `<div class="vault-missing" style="max-width:520px; margin:26px auto 0; text-align:left;">${missingHtml}</div>` : ''}
+    </div>`;
+    return;
+  }
+  empty.style.display = 'none'; empty.innerHTML = '';
+  content.style.display = '';
+
+  const range = getSelectedChips('vaultRange')[0] || 'all';
+  const { from, list } = vaultFiltered();
+  const V = computeVault(list);
+
+  // ---- hero ----
+  const hero = $('#vaultHero');
+  if(list.length === 0){
+    hero.className = 'vault-hero';
+    hero.innerHTML = `<div><div class="vault-eyebrow">Netto resultaat${VAULT_RANGE_LABEL[range]||''}</div>
+      <div class="vault-net" style="color:var(--text-dim);">$0.00</div>
+      <div class="vault-sub"><span>Geen boekingen in deze periode.</span></div></div><div></div>`;
+  } else {
+    const sign = V.net >= 0 ? 'pos' : 'neg';
+    const rec = V.recovered;
+    const meter = V.spent > 0 ? `
+      <div class="vault-meter-head"><span>Terugverdiend</span><span class="vault-meter-pct">${Math.round(rec)}%</span></div>
+      <div class="vault-meter-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100,Math.round(rec))}">
+        <div class="vault-meter-fill${rec>=100?' done':''}" style="width:${Math.min(100,rec).toFixed(1)}%;"></div></div>
+      <div class="vault-meter-cap">${V.net>=0
+        ? `Break-even gehaald — <b style="color:var(--pos);">${fmtMoney(V.net)}</b> winst bovenop je uitgaven.`
+        : `Nog <b style="color:var(--text);">${fmtMoney(-V.net)}</b> te gaan tot break-even.`}</div>`
+      : `<div class="vault-meter-cap">Nog niets uitgegeven in deze periode — alle inkomsten zijn winst.</div>`;
+    hero.className = 'vault-hero ' + sign;
+    hero.innerHTML = `<div>
+        <div class="vault-eyebrow">Netto resultaat${VAULT_RANGE_LABEL[range]||''}</div>
+        <div class="vault-net ${sign}">${fmtMoneySigned(V.net)}</div>
+        <div class="vault-sub">
+          <span>Uitgegeven <b>${fmtMoney(V.spent)}</b></span>
+          <span>Ontvangen <b>${fmtMoney(V.received)}</b></span>
+          ${V.roi!==null ? `<span>ROI <b style="color:${V.roi>=0?'var(--pos)':'var(--neg)'};">${fmtPct(V.roi)}</b></span>` : ''}
+        </div></div>
+      <div>${meter}</div>`;
+  }
+
+  // ---- KPI tiles ----
+  const tile = (label, value, cls, sub)=>`<div class="kpi"><div class="label">${label}</div><div class="value ${cls||'neutral'}">${value}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
+  const projTxt = V.net >= 0 && V.spent > 0 ? 'Gehaald ✓'
+                : V.projection !== null ? `~${V.projection} mnd`
+                : '—';
+  const projSub = V.net >= 0 && V.spent > 0 ? 'je bent winstgevend'
+                : V.projection !== null ? 'aan je tempo van 90 dagen'
+                : V.spent > 0 ? 'geen positieve trend' : '';
+  $('#vaultKpi1').innerHTML =
+    tile('Uitgegeven', fmtMoney(V.spent), 'neutral', `${V.exp.length} boeking${V.exp.length===1?'':'en'}`) +
+    tile('Ontvangen', fmtMoney(V.received), V.received>0?'pos':'neutral', `${V.inc.length} boeking${V.inc.length===1?'':'en'}`) +
+    tile('ROI', V.roi!==null ? fmtPct(V.roi) : '—', V.roi===null?'neutral':(V.roi>=0?'pos':'neg'), 'netto ÷ uitgegeven') +
+    tile('Netto per maand', fmtMoneySigned(V.avgNetPerMonth), V.avgNetPerMonth>=0?'pos':'neg', `over ${V.months.length} maand${V.months.length===1?'':'en'}`) +
+    tile('Laatste payout', V.lastPayout ? fmtMoney(V.lastPayout.amount) : '—', V.lastPayout?'pos':'neutral',
+         V.lastPayout ? `${V.daysSincePayout===0?'vandaag':V.daysSincePayout+' dagen geleden'} · ${fmtDay(V.lastPayout.date)}` : 'nog geen payout') +
+    tile('Break-even prognose', projTxt, V.net>=0&&V.spent>0?'pos':'accent', projSub);
+
+  const hit = V.hitTotal ? `${V.hitCount} / ${V.hitTotal}` : '—';
+  const hitSub = V.hitTotal ? `${Math.round(V.hitCount/V.hitTotal*100)}% gaf ooit een payout` : 'koppel boekingen aan accounts';
+  $('#vaultKpi2').innerHTML =
+    tile('Accounts gekocht', V.challenges.length, 'neutral', V.challenges.length ? `gem. ${fmtMoney(vaultSum(V.challenges)/V.challenges.length)} per challenge` : 'boek een challenge') +
+    tile('Kost per account', V.costPerAccount!==null ? fmtMoney(V.costPerAccount) : '—', 'neutral', 'alles inbegrepen: resets, activaties, tools') +
+    tile('Payouts', V.payouts.length, V.payouts.length?'pos':'neutral', V.payouts.length ? `gem. ${fmtMoney(V.avgPayout)}` : '') +
+    tile('Grootste payout', V.maxPayout>0 ? fmtMoney(V.maxPayout) : '—', V.maxPayout>0?'pos':'neutral', '') +
+    tile('Hit-rate accounts', hit, 'accent', hitSub) +
+    tile('Resets', V.resets.length, V.resetShare>=25?'neg':'neutral', V.spent>0 ? `${Math.round(V.resetShare)}% van je uitgaven` : '');
+
+  // ---- insights ----
+  const ins = vaultInsights(V);
+  $('#vaultInsights').innerHTML = ins.length
+    ? ins.map(i=>`<li><span class="dot ${i.tone==='dim'?'':i.tone}"></span><span>${i.html}</span></li>`).join('')
+    : `<li><span class="dot"></span><span>Voeg een paar boekingen toe en hier verschijnen je inzichten.</span></li>`;
+
+  // ---- charts ----
+  vaultCharts(V);
+
+  // ---- categories (one hue: nominal categories get no rainbow) ----
+  const maxCat = V.cats.length ? V.cats[0].amount : 0;
+  $('#vaultCats').innerHTML = V.cats.length ? V.cats.map(c=>`
+    <div class="vbar-row">
+      <div class="vbar-label">${catLabel('expense', c.key)}</div>
+      <div class="vbar-track"><div class="vbar-fill" style="width:${maxCat?(c.amount/maxCat*100).toFixed(1):0}%;"></div></div>
+      <div class="vbar-val">${fmtMoney(c.amount)}<span>${V.spent?Math.round(c.amount/V.spent*100):0}%</span></div>
+    </div>`).join('') : `<div style="color:var(--text-faint); font-size:12.5px;">Nog geen uitgaven in deze periode.</div>`;
+
+  // ---- per firm ----
+  $('#vaultFirms').innerHTML = V.firms.length
+    ? `<tr><th>Firma</th><th>Uitgegeven</th><th>Ontvangen</th><th>Netto</th><th>ROI</th></tr>` +
+      V.firms.map(f=>`<tr>
+        <td style="font-weight:600;">${escHtml(f.firm)}${f.challenges?`<div style="font-weight:400; font-size:10.5px; color:var(--text-faint); font-family:'Inter',sans-serif; margin-top:2px;">${f.challenges} challenge${f.challenges===1?'':'s'}</div>`:''}</td>
+        <td>${fmtMoney(f.spent)}</td>
+        <td style="color:${f.received>0?'var(--pos)':'var(--text-dim)'};">${fmtMoney(f.received)}</td>
+        <td style="font-weight:700; color:${f.net>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(f.net)}</td>
+        <td style="color:${f.roi===null?'var(--text-faint)':(f.roi>=0?'var(--pos)':'var(--neg)')};">${f.roi===null?'—':fmtPct(f.roi)}</td></tr>`).join('')
+    : emptyRowText('Geen boekingen in deze periode.');
+
+  // ---- per account ----
+  const tradePnl = id => brokerTrades.filter(t=>t.accountId===id && (!from || t.date>=from)).reduce((a,t)=>a+t.netPnl, 0);
+  $('#vaultAccts').innerHTML = V.accts.length
+    ? `<tr><th>Account</th><th>Uitgegeven</th><th>Ontvangen</th><th>Netto</th><th>Trading P&amp;L</th></tr>` +
+      V.accts.map(a=>{
+        const acc = accounts.find(x=>x.id===a.id);
+        const tp = tradePnl(a.id);
+        return `<tr>
+          <td style="font-weight:600;">${escHtml(acc?acc.account_label:'Onbekend')}${acc&&acc.excluded_from_stats?' <span class="tag" style="font-size:9px;">uit</span>':''}</td>
+          <td>${fmtMoney(a.spent)}</td>
+          <td style="color:${a.received>0?'var(--pos)':'var(--text-dim)'};">${fmtMoney(a.received)}</td>
+          <td style="font-weight:700; color:${a.net>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(a.net)}</td>
+          <td style="color:var(--text-dim);">${fmtMoneySigned(tp)}</td></tr>`;
+      }).join('')
+    : emptyRowText('Koppel een boeking aan een account om hem hier te zien.');
+  const mEl = $('#vaultMissing');
+  mEl.style.display = unlinked.length ? '' : 'none';
+  mEl.innerHTML = missingHtml;
+
+  renderVaultLedger();
+}
+function emptyRowText(t){ return `<tr><td style="color:var(--text-faint); padding:16px 0; font-family:'Inter',sans-serif;">${t}</td></tr>`; }
+
+function renderVaultLedger(){
+  const el = $('#vaultLedger'); if(!el) return;
+  const kind = getSelectedChips('vaultKind')[0] || 'all';
+  const { list } = vaultFiltered();
+  const rows = list.filter(e=>kind==='all' || e.kind===kind).sort((a,b)=>cmpDate(b,a));
+  const shown = rows.slice(0, vaultLedgerLimit);
+  $('#vaultLedgerCount').textContent = `${rows.length} boeking${rows.length===1?'':'en'}`;
+  if(!rows.length){ el.innerHTML = emptyRowText('Geen boekingen.'); return; }
+  let html = `<tr><th>Datum</th><th>Soort</th><th>Categorie</th><th>Firma</th><th>Account</th><th>Notitie</th><th style="text-align:right;">Bedrag</th><th></th></tr>`;
+  shown.forEach(e=>{
+    const isInc = e.kind==='income';
+    html += `<tr>
+      <td style="white-space:nowrap;">${fmtDay(e.date)}</td>
+      <td><span class="tag ${isInc?'win':'loss'}">${isInc?'Inkomst':'Uitgave'}</span></td>
+      <td style="color:var(--text-dim);">${catLabel(e.kind, e.category)}</td>
+      <td>${escHtml(e.firm)||'<span style="color:var(--text-faint);">—</span>'}</td>
+      <td style="color:var(--text-dim);">${e.accountId?escHtml(accountLabelFor(e.accountId)):'<span style="color:var(--text-faint);">—</span>'}</td>
+      <td style="color:var(--text-dim); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Inter',sans-serif;" title="${escHtml(e.note)}">${escHtml(e.note)}</td>
+      <td style="text-align:right; font-weight:700; color:${isInc?'var(--pos)':'var(--neg)'};">${isInc?'+':'−'}${fmtMoney(e.amount)}</td>
+      <td style="text-align:right;"><span class="btn secondary small" onclick="openFinModal('','','${e.id}')">Bewerk</span></td></tr>`;
+  });
+  if(rows.length > shown.length){
+    html += `<tr><td colspan="8" style="text-align:center; padding:14px;"><span class="btn secondary small" onclick="vaultShowMore()">Toon meer (${shown.length} van ${rows.length})</span></td></tr>`;
+  }
+  el.innerHTML = html;
+}
+function vaultShowMore(){ vaultLedgerLimit += 25; renderVaultLedger(); }
+
+function vaultCharts(V){
+  ['vaultCash','vaultMonths'].forEach(id=>{ if(charts[id]){ charts[id].destroy(); delete charts[id]; } });
+  const cash = document.getElementById('vaultCash'), mon = document.getElementById('vaultMonths');
+  const grid = 'rgba(255,255,255,0.04)', tick = '#8A93A6';
+  const xTicks = { color:'#5B6480', font:{ size:10 }, maxTicksLimit:7, maxRotation:0 };
+
+  if(cash && V.cum.length){
+    const many = V.cum.length > 40;
+    charts.vaultCash = new Chart(cash, {
+      type:'line',
+      data:{ labels: V.cum.map(p=>fmtDay(p.date)), datasets:[{
+        label:'Netto cashflow', data: V.cum.map(p=>Math.round(p.v*100)/100),
+        borderColor:'#2FD6A7', borderWidth:2, tension:0.2,
+        pointRadius: many?0:3, pointHoverRadius:5, pointBackgroundColor:'#131829', pointBorderWidth:2,
+        fill:{ target:'origin', above:'rgba(47,214,167,0.14)', below:'rgba(242,85,92,0.14)' },
+        segment:{ borderColor:c=> (c.p0.parsed.y + c.p1.parsed.y)/2 >= 0 ? '#2FD6A7' : '#F2555C' },
+      }]},
+      options:{ animation:false, responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c=>'Netto: '+fmtMoneySigned(c.parsed.y) } } },
+        scales:{
+          x:{ grid:{ display:false }, ticks:xTicks },
+          // Always keep the break-even line (0) in view, even while you are still below it.
+          y:{ suggestedMin:0, suggestedMax:0, grace:'6%',
+              grid:{ color:c=> c.tick && c.tick.value===0 ? '#3A4258' : grid, lineWidth:c=> c.tick && c.tick.value===0 ? 1.5 : 1 },
+              ticks:{ color:tick, font:{ size:10 }, callback:v=>fmtMoneyShort(v) } },
+        } },
+    });
+  }
+
+  if(mon && V.months.length){
+    const months = V.months.slice(-18);          // a year and a half is plenty to read
+    charts.vaultMonths = new Chart(mon, {
+      type:'bar',
+      data:{ labels: months.map(m=>fmtMonthKey(m.key)), datasets:[
+        { label:'Ontvangen',  data: months.map(m=>m.inc),  backgroundColor:'#2FD6A7', borderRadius:{ topLeft:4, topRight:4 },       barPercentage:0.6, categoryPercentage:0.8 },
+        { label:'Uitgegeven', data: months.map(m=>-m.exp), backgroundColor:'#F2555C', borderRadius:{ bottomLeft:4, bottomRight:4 }, barPercentage:0.6, categoryPercentage:0.8 },
+      ]},
+      options:{ animation:false, responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+          legend:{ display:true, labels:{ color:tick, font:{ size:10 }, boxWidth:10, boxHeight:10, usePointStyle:true } },
+          tooltip:{ callbacks:{
+            label:c=> `${c.dataset.label}: ${fmtMoney(Math.abs(c.parsed.y))}`,
+            footer:items=>{ const t = items.reduce((a,i)=>a+i.parsed.y, 0); return 'Netto: '+fmtMoneySigned(t); },
+          } },
+        },
+        scales:{
+          x:{ stacked:true, grid:{ display:false }, ticks:{ ...xTicks, maxTicksLimit:12 } },
+          y:{ stacked:true, grid:{ color:c=> c.tick && c.tick.value===0 ? '#3A4258' : grid }, ticks:{ color:tick, font:{ size:10 }, callback:v=>fmtMoneyShort(v) } },
+        } },
+    });
+  }
+}
+
+/* ---------- entry form ---------- */
+const finState = { id:null, kind:'expense', category:'challenge' };
+function finRenderChips(){
+  const kinds = [['expense','Uitgave'],['income','Inkomst']];
+  $('#finKind').innerHTML = kinds.map(([k,l])=>`<div class="chip${finState.kind===k?' selected':''}" data-val="${k}" ${k==='income'?'data-tone="pos"':'data-tone="neg"'}>${l}</div>`).join('');
+  const cats = finState.kind==='income' ? INCOME_CATS : EXPENSE_CATS;
+  if(!cats.some(c=>c.key===finState.category)) finState.category = cats[0].key;
+  $('#finCat').innerHTML = cats.map(c=>`<div class="chip${finState.category===c.key?' selected':''}" data-val="${c.key}">${c.label}</div>`).join('');
+  $('#finKind').querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click', ()=>{ finState.kind = ch.dataset.val; finRenderChips(); }));
+  $('#finCat').querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click', ()=>{ finState.category = ch.dataset.val; finRenderChips(); }));
+}
+function openFinModal(kind, category, id, accountId){
+  const e = id ? financeEntries.find(x=>x.id===id) : null;
+  finState.id = e ? e.id : null;
+  finState.kind = e ? e.kind : (kind || 'expense');
+  finState.category = e ? e.category : (category || (finState.kind==='income' ? 'payout' : 'challenge'));
+  $('#finTitle').textContent = e ? 'Boeking bewerken' : (finState.kind==='income' ? 'Nieuwe inkomst' : 'Nieuwe uitgave');
+  finRenderChips();
+  $('#finAmount').value = e ? e.amount : '';
+  $('#finDate').value = e ? e.date : localDateStr(new Date());
+  $('#finFirm').value = e ? e.firm : '';
+  $('#finNote').value = e ? e.note : '';
+  const firms = [...new Set([...financeEntries.map(x=>x.firm).filter(Boolean), 'Apex', 'Lucid', 'Topstep', 'Tradeify', 'Goat Funded', 'FTMO'])];
+  $('#finFirms').innerHTML = firms.map(f=>`<option value="${escHtml(f)}">`).join('');
+  const sel = $('#finAccount');
+  sel.innerHTML = `<option value="">— Geen account —</option>` +
+    accounts.filter(a=>a.broker_type!=='manual_legacy').map(a=>`<option value="${a.id}">${escHtml(a.account_label)}</option>`).join('');
+  sel.value = e ? (e.accountId||'') : (accountId||'');
+  if(!e && accountId) finPrefillFirm();
+  $('#finDeleteBtn').style.display = e ? '' : 'none';
+  $('#finModalBg').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(()=>{ const a = $('#finAmount'); if(a) a.focus(); }, 30);
+}
+// Picking an account suggests its firm (first word of the label: "Lucid 25K" -> "Lucid").
+function finPrefillFirm(){
+  const acc = accounts.find(a=>a.id===$('#finAccount').value);
+  if(acc && !$('#finFirm').value.trim()) $('#finFirm').value = (acc.account_label||'').trim().split(/\s+/)[0] || '';
+}
+function closeFinModal(){
+  $('#finModalBg').style.display = 'none';
+  document.body.style.overflow = '';
+}
+function closeFinFromBackdrop(e){ if(e && e.target === e.currentTarget) closeFinModal(); }
+
+async function saveFinEntry(){
+  const amount = parseFloat($('#finAmount').value);
+  const date = $('#finDate').value;
+  if(!isFinite(amount) || amount < 0){ showToast('Vul een geldig bedrag in'); $('#finAmount').focus(); return; }
+  if(!date){ showToast('Kies een datum'); return; }
+  const row = {
+    kind: finState.kind, category: finState.category, amount, entry_date: date,
+    firm: $('#finFirm').value.trim() || null,
+    account_id: $('#finAccount').value || null,
+    note: $('#finNote').value.trim() || null,
+  };
+  const btn = $('#finSaveBtn'); btn.disabled = true; btn.textContent = 'Opslaan…';
+  try{
+    if(finState.id){
+      const { error } = await supabase.from('finance_entries').update(row).eq('id', finState.id);
+      if(error) throw error;
+      const i = financeEntries.findIndex(x=>x.id===finState.id);
+      if(i >= 0) financeEntries[i] = mapFinanceRow({ ...row, id:finState.id });
+    } else {
+      const { data, error } = await supabase.from('finance_entries').insert(row).select().single();
+      if(error) throw error;
+      financeEntries.unshift(mapFinanceRow(data));
+    }
+    financeError = null;
+    closeFinModal();
+    showToast('Opgeslagen ✓');
+    viewDirty.vault = true; flushView('vault');
+  }catch(e){
+    console.error('finance save failed', e);
+    showToast('Opslaan mislukt: ' + (e.message || 'draai eerst de Vault-migratie'));
+  }finally{
+    btn.disabled = false; btn.textContent = 'Opslaan';
+  }
+}
+async function deleteFinEntry(){
+  if(!finState.id) return;
+  if(!confirm('Deze boeking verwijderen?')) return;
+  try{
+    const { error } = await supabase.from('finance_entries').delete().eq('id', finState.id);
+    if(error) throw error;
+    financeEntries = financeEntries.filter(x=>x.id !== finState.id);
+    closeFinModal();
+    showToast('Boeking verwijderd');
+    viewDirty.vault = true; flushView('vault');
+  }catch(e){
+    console.error('finance delete failed', e);
+    showToast('Verwijderen mislukt: ' + (e.message||''));
+  }
+}
+
+
+/* ============================================================
    INIT
    ============================================================ */
 function initApp(){
@@ -3634,6 +4329,16 @@ function initApp(){
   if(acctSel) acctSel.addEventListener('change', ()=>{ updateCsvAccountFields(); if(csvState.rows.length) renderCsvPreview(); });
   const exclToggle = document.getElementById('jExcluded');
   if(exclToggle) exclToggle.addEventListener('change', updateExcludeReasonVisibility);
+  // Vault: period and ledger filters, account -> firm suggestion, Esc closes the form.
+  const vRange = document.getElementById('vaultRange');
+  if(vRange) vRange.addEventListener('click', ()=> setTimeout(()=>{ vaultLedgerLimit = 25; renderVault(); }, 0));
+  const vKind = document.getElementById('vaultKind');
+  if(vKind) vKind.addEventListener('click', ()=> setTimeout(()=>{ vaultLedgerLimit = 25; renderVaultLedger(); }, 0));
+  const finAcct = document.getElementById('finAccount');
+  if(finAcct) finAcct.addEventListener('change', finPrefillFirm);
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape' && $('#finModalBg') && $('#finModalBg').style.display==='flex') closeFinModal();
+  });
   const wrWindow = document.getElementById('wrWindow');
   if(wrWindow) wrWindow.addEventListener('click', ()=> setTimeout(()=>renderWinRateChart(strategyTrades()), 0));
   // Filter listeners
@@ -3659,6 +4364,12 @@ window.renameAccount = renameAccount;
 window.toggleAccountKpi = toggleAccountKpi;
 window.logShowMore = logShowMore;
 window.toggleAccountOpen = toggleAccountOpen;
+window.openFinModal = openFinModal;
+window.closeFinModal = closeFinModal;
+window.closeFinFromBackdrop = closeFinFromBackdrop;
+window.saveFinEntry = saveFinEntry;
+window.deleteFinEntry = deleteFinEntry;
+window.vaultShowMore = vaultShowMore;
 window.toggleOffSection = toggleOffSection;
 window.saveCopyOf = saveCopyOf;
 window.unlinkCopy = unlinkCopy;
