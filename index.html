@@ -585,6 +585,105 @@
     .vbar-row{grid-template-columns:96px 1fr 92px; gap:9px;}
   }
 
+
+  /* ---------- BACKTEST (sessions per year, data drop, KPIs) ---------- */
+  .bt-sessions{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
+  .bt-chip{display:flex; align-items:center; gap:8px; padding:9px 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface-1);
+    cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text-dim); user-select:none; transition:all .14s var(--ease);
+    touch-action:manipulation; -webkit-tap-highlight-color:transparent;}
+  .bt-chip:hover{border-color:#3A4250; color:var(--text);}
+  .bt-chip.active{border-color:var(--accent); background:var(--accent-glow); color:var(--accent-bright);}
+  .bt-chip .n{font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:500; color:var(--text-faint);}
+  .bt-chip.active .n{color:var(--accent-bright); opacity:.8;}
+  .bt-chip.add{border-style:dashed; background:transparent; color:var(--text-faint);}
+  .bt-chip.add:hover{color:var(--accent-bright); border-color:var(--accent-dim);}
+
+  .bt-head{padding:20px 22px;}
+  .bt-head-top{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;}
+  .bt-head-name{font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:700; letter-spacing:-0.3px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .bt-head-sub{font-size:12.5px; color:var(--text-dim); margin-top:5px; line-height:1.5; max-width:720px;}
+  .bt-be{margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline);}
+  .bt-be-title{font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text); margin-bottom:10px;}
+  .bt-be-row{display:flex; align-items:center; gap:14px 18px; flex-wrap:wrap;}
+  .bt-stepper{display:inline-flex; align-items:stretch; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-1); overflow:hidden;}
+  .bt-stepper button{width:34px; background:transparent; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; transition:background .12s, color .12s;}
+  .bt-stepper button:hover{background:var(--surface-2); color:var(--text);}
+  .bt-stepper input{width:72px; text-align:center; border:none !important; border-left:1px solid var(--border) !important; border-right:1px solid var(--border) !important; border-radius:0 !important;
+    background:transparent !important; box-shadow:none !important; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; color:var(--be) !important; padding:8px 4px; -moz-appearance:textfield;}
+  .bt-stepper input::-webkit-outer-spin-button, .bt-stepper input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .bt-stepper .u{display:flex; align-items:center; padding:0 10px 0 8px; font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;}
+  .bt-be-note{margin-top:11px; font-size:11.5px; color:var(--text-faint); line-height:1.55;}
+  .bt-be-note b{color:var(--be); font-weight:600;}
+
+  .bt-drop-head{display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;}
+  .bt-drop-head h2{margin-bottom:2px;}
+  .bt-drop-head .desc{margin-bottom:0;}
+  .bt-chev{color:var(--text-faint); font-size:18px; transition:transform .18s var(--ease); flex:none;}
+  .bt-drop.open .bt-chev{transform:rotate(90deg);}
+  .bt-drop-body{display:none; margin-top:18px;}
+  .bt-drop.open .bt-drop-body{display:block;}
+  .bt-zone{position:relative;}
+  .bt-zone textarea{width:100%; min-height:190px; resize:vertical; background:var(--surface-1); border:1.5px dashed var(--border); border-radius:var(--radius);
+    padding:16px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.65; transition:border-color .15s, background .15s;}
+  .bt-zone textarea::placeholder{color:var(--text-ghost);}
+  .bt-zone.drag textarea{border-color:var(--accent); background:var(--accent-glow);}
+  .bt-zone-bar{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:8px; font-size:11px; color:var(--text-faint); flex-wrap:wrap;}
+  .bt-opts{display:grid; grid-template-columns:1fr 1fr; gap:16px 24px; margin-top:16px;}
+  .bt-opt-l{font-size:10.5px; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:8px;}
+  .bt-opt.full{grid-column:1 / -1;}
+  .bt-prev{margin-top:18px; border:1px solid var(--hairline); border-radius:var(--radius); background:var(--surface-1); padding:16px 18px;}
+  .bt-prev-chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .bt-prev-chips .tag{cursor:default; font-family:'Inter',sans-serif; font-size:11px;}
+  .bt-prev-chips .tag.click{cursor:pointer;}
+  .bt-mini{display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-bottom:14px;}
+  .bt-mini div{background:var(--surface-0); padding:10px 12px;}
+  .bt-mini .l{font-size:9.5px; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-faint);}
+  .bt-mini .v{font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:600; margin-top:3px;}
+  .bt-plan{display:flex; flex-direction:column; gap:6px; margin-bottom:14px; font-size:12.5px; color:var(--text-dim);}
+  .bt-plan .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .bt-plan b{color:var(--text); font-weight:600;}
+  .bt-err{font-size:12px; color:var(--neg); background:var(--neg-glow); border:1px solid var(--neg-dim); border-radius:8px; padding:9px 12px; margin-bottom:12px; line-height:1.5;}
+  .bt-skip{margin-top:10px; font-size:11.5px; color:var(--text-dim);}
+  .bt-skip table{margin-top:8px;}
+  .bt-skip td{font-size:11px; padding:6px 8px; color:var(--text-dim);}
+  .bt-drop-actions{display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap;}
+  .bt-help{margin-top:14px; font-size:12px; color:var(--text-dim); line-height:1.7; display:none;}
+  .bt-help.show{display:block;}
+  .bt-help pre{background:var(--surface-1); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin:8px 0 14px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text); overflow-x:auto; line-height:1.6;}
+  .bt-help b{color:var(--text);}
+
+  .bt-ring-wrap{display:flex; align-items:center; gap:26px; justify-content:center;}
+  .bt-ring{position:relative; width:148px; height:148px; flex:none;}
+  .bt-ring svg{width:100%; height:100%; transform:rotate(-90deg);}
+  .bt-ring .c{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+  .bt-ring .c b{font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700; letter-spacing:-1px; line-height:1;}
+  .bt-ring .c span{font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); margin-top:5px;}
+  .bt-legend{display:flex; flex-direction:column; gap:10px; font-size:12.5px; color:var(--text-dim);}
+  .bt-legend div{display:flex; align-items:center; gap:9px;}
+  .bt-legend i{width:9px; height:9px; border-radius:3px; display:inline-block;}
+  .bt-legend b{color:var(--text); font-family:'JetBrains Mono',monospace; font-weight:600; margin-left:auto; padding-left:14px;}
+  .bt-note{font-size:11px; color:var(--text-faint); margin:8px 2px 0; line-height:1.5;}
+  .bt-panel-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:2px;}
+  .bt-sublabel{font-size:10px; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin:14px 0 6px;}
+  .bt-bartable td, .bt-bartable th{padding-left:8px; padding-right:8px;}
+  .bt-bartable th:first-child, .bt-bartable td:first-child{padding-left:2px;}
+  .bt-bartable td:first-child{font-family:'Inter',sans-serif; font-weight:500;}
+  .bt-mc{display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-top:14px;}
+  .bt-mc div{background:var(--surface-0); padding:11px 13px;}
+  .bt-mc .l{font-size:9.5px; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-faint);}
+  .bt-mc .v{font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:600; margin-top:3px;}
+  .bt-mc .s{font-size:10.5px; color:var(--text-faint); margin-top:2px; line-height:1.4;}
+  .bt-sim-in{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;}
+  .bt-sim-in input{width:100%;}
+  .bt-session-cmp tbody tr{cursor:pointer;}
+  .bt-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px;}
+  @media(max-width:820px){
+    .bt-opts{grid-template-columns:1fr;}
+    .bt-mini{grid-template-columns:repeat(2,1fr);}
+    .bt-ring-wrap{flex-direction:column; gap:18px;}
+    .bt-head-name{font-size:17px;}
+  }
+
 </style>
 </head>
 <body>
@@ -630,6 +729,10 @@
   <div class="navbtn" data-view="coach">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 6 0v-1a3 3 0 0 0 3-3 3 3 0 0 0 0-6 3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z"/></svg>
     AI Coach
+  </div>
+  <div class="navbtn" data-view="backtest">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/><polyline points="12 7.5 12 12 15 14"/></svg>
+    Backtest
   </div>
   <div class="nav-label" style="margin-top:22px;">Business</div>
   <div class="navbtn" data-view="vault">
@@ -853,6 +956,99 @@
     </div>
   </div>
 
+  <!-- BACKTEST -->
+  <div class="view" id="view-backtest">
+    <div class="topbar">
+      <div>
+        <h1>Backtest</h1>
+        <div class="sub">Zet je backtest-data van andere platformen hier neer — een sessie per jaar, met alle KPI's.</div>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="btn secondary" onclick="btOpenSession()">+ Sessie</button>
+        <button type="button" class="btn" id="btAddTradeBtn" style="display:none;" onclick="btOpenTrade()">+ Trade</button>
+      </div>
+    </div>
+    <div class="view-body">
+      <div id="btBanner" class="be-warn" style="display:none; margin-bottom:16px;"></div>
+      <div id="btSessions" class="bt-sessions"></div>
+      <div id="btHead"></div>
+
+      <div class="panel bt-drop" id="btDrop" style="display:none;">
+        <div class="bt-drop-head" onclick="btToggleDrop()">
+          <div>
+            <h2>Data drop</h2>
+            <div class="desc">Plak al je trades in één keer — honderden regels is geen probleem. Het systeem leest ze, rekent alles uit en verdeelt ze desgewenst per jaar.</div>
+          </div>
+          <span class="bt-chev">›</span>
+        </div>
+        <div class="bt-drop-body">
+          <div class="bt-zone" id="btZone">
+            <textarea id="btText" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Plak hier je backtest-data (Ctrl+V)…&#10;&#10;2023-01-05  NQ  long   +2.1R&#10;2023-01-06  NQ  short  -1R&#10;06/01/2023  ES  long   0.05R   FVG retest&#10;&#10;…of gewoon een rij getallen:  +2R -1R 1.5R -1R 0.3R&#10;…of een kopie uit Excel / CSV met kopregel (Date, Symbol, R, Notes)"></textarea>
+          </div>
+          <div class="bt-zone-bar">
+            <span>Of sleep een .csv / .txt bestand hierheen · <label for="btFile" style="color:var(--accent-bright); cursor:pointer; text-decoration:underline;">bestand kiezen</label><input type="file" id="btFile" accept=".csv,.txt,.tsv,text/plain,text/csv" style="display:none;"></span>
+            <span><span class="btn ghost small" onclick="btToggleHelp()">Welke formaten snapt hij?</span></span>
+          </div>
+          <div class="bt-help" id="btHelp">
+            <b>Eén trade per regel</b> — de volgorde van de velden maakt niet uit. Hij herkent zelf:
+            <pre>datum      2023-01-05 · 05/01/2023 · 5.1.2023 · 5 jan 2023 · 20230105   (+ eventueel tijd 14:30)
+richting   long / short / buy / sell
+symbool    NQ, ES, SPX500, EURUSD, XAUUSD …  (anders: vul "standaard symbool" in)
+resultaat  +2R · -1R · 1,5R · $150 · -$75 · ($80.00) · +12 pt · 0.8%
+uitkomst   win / loss / BE mét een getal → "loss 1R" wordt -1R
+tag        #fvg   of   setup:breaker
+notitie    alle overige woorden</pre>
+            <b>Alleen getallen</b> mag ook, ook als alles op één regel staat: <span style="font-family:'JetBrains Mono',monospace;">+2R -1R 1.5R -1R 0.3R</span><br>
+            <b>Excel / CSV / TradingView-export</b>: kopieer inclusief kopregel (Date, Symbol, Direction, R, Notes…). Kolommen als Entry, Exit, SL, TP, Size worden genegeerd.<br>
+            Staan er meerdere getallen op een regel, dan telt het getal mét eenheid (R, $, %). Zet je eenheid er niet bij, dan neemt hij de eenheid van de sessie.
+          </div>
+
+          <div class="bt-opts">
+            <div class="bt-opt full">
+              <div class="bt-opt-l">Waar naartoe?</div>
+              <div class="chips-row" id="btTargetChips"></div>
+              <div id="btNewWrap" style="display:none; margin-top:10px; max-width:340px;"><input type="text" id="btNewName" placeholder="Naam van de nieuwe sessie" style="width:100%;"></div>
+            </div>
+            <div class="bt-opt">
+              <div class="bt-opt-l">Datumnotatie</div>
+              <div class="chips-row" id="btFmt">
+                <div class="chip selected" data-val="auto">Automatisch</div>
+                <div class="chip" data-val="dmy">DD/MM/JJJJ</div>
+                <div class="chip" data-val="mdy">MM/DD/JJJJ</div>
+              </div>
+            </div>
+            <div class="bt-opt" id="btModeWrap">
+              <div class="bt-opt-l">Bestaande trades in de sessie</div>
+              <div class="chips-row" id="btMode">
+                <div class="chip selected" data-val="append">Nieuwe toevoegen</div>
+                <div class="chip" data-val="replace" data-tone="neg">Alles vervangen</div>
+              </div>
+            </div>
+            <div class="bt-opt">
+              <div class="bt-opt-l">Standaard symbool (optioneel)</div>
+              <input type="text" id="btSym" placeholder="bv. NQ" style="width:140px; text-transform:uppercase;">
+            </div>
+            <div class="bt-opt">
+              <div class="bt-opt-l">Opties</div>
+              <div class="chips-row">
+                <span class="checkfield"><input type="checkbox" id="btReverse"><label for="btReverse">Volgorde omdraaien</label></span>
+                <span class="checkfield" id="btSkipWrap" style="display:none;"><input type="checkbox" id="btSkipDupes"><label for="btSkipDupes">Al aanwezige trades overslaan</label></span>
+              </div>
+            </div>
+          </div>
+
+          <div id="btPreview"></div>
+          <div class="bt-drop-actions">
+            <button type="button" class="btn" id="btImportBtn" disabled onclick="btImport()">Importeren</button>
+            <button type="button" class="btn secondary" onclick="btClearDrop()">Leegmaken</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="btBody"></div>
+    </div>
+  </div>
+
   <!-- ACCOUNTS -->
   <div class="view" id="view-accounts">
     <div class="topbar">
@@ -940,6 +1136,59 @@
   </div>
 
 </div>
+</div>
+
+<!-- BACKTEST: session modal -->
+<div id="btSessModalBg" class="modal-bg" style="display:none;" onclick="btBackdrop(event,'btSessModalBg')">
+  <div class="modal" style="max-width:560px;">
+    <span class="modal-close" onclick="btCloseModal('btSessModalBg')">×</span>
+    <h2 id="btsTitle" style="font-family:'Space Grotesk',sans-serif; font-size:18px; margin-bottom:4px;">Nieuwe sessie</h2>
+    <div style="font-size:12px; color:var(--text-faint); margin-bottom:20px;">Een sessie is één backtest-run — meestal één jaar of één strategie.</div>
+    <div class="form-row c2">
+      <div class="field"><label>Naam</label><input type="text" id="btsName" placeholder="bv. Backtest 2023"></div>
+      <div class="field"><label>Jaar (optioneel)</label><input type="number" id="btsYear" min="1990" max="2100" placeholder="bv. 2023"></div>
+    </div>
+    <div class="field" style="margin-bottom:16px;"><label>Strategie (optioneel)</label><input type="text" id="btsStrategy" placeholder="bv. NQ 5m FVG retest na sweep, 1:2 RR" style="width:100%;"></div>
+    <div class="field" style="margin-bottom:16px;"><label>Eenheid van je resultaten</label><div class="chips-row" id="btsUnit"></div>
+      <div id="btsUnitHint" style="font-size:11px; color:var(--text-faint); margin-top:6px;"></div></div>
+    <div class="form-row c2">
+      <div class="field"><label>Breakeven-drempel</label><input type="number" step="any" min="0" id="btsBe" placeholder="0"></div>
+      <div class="field"><label>&nbsp;</label><span class="checkfield" style="width:100%;"><input type="checkbox" id="btsBeZero"><label for="btsBeZero">BE telt als 0 in resultaat</label></span></div>
+    </div>
+    <div class="form-row c2">
+      <div class="field"><label>Startkapitaal voor simulatie ($)</label><input type="number" step="any" min="1" id="btsStart" placeholder="10000"></div>
+      <div class="field"><label>Risico per trade voor simulatie (%)</label><input type="number" step="any" min="0.01" id="btsRisk" placeholder="1"></div>
+    </div>
+    <div class="field"><label>Notities (optioneel)</label><textarea id="btsNotes" placeholder="Regels, aannames, wat je wilt testen…" style="min-height:64px;"></textarea></div>
+    <div style="display:flex; gap:10px; margin-top:22px; flex-wrap:wrap;">
+      <button type="button" class="btn" id="btsSaveBtn" style="flex:1; min-width:140px;" onclick="btSaveSessionModal()">Opslaan</button>
+      <button type="button" class="btn danger" id="btsClearBtn" style="display:none;" onclick="btClearSession()">Trades wissen</button>
+      <button type="button" class="btn danger" id="btsDeleteBtn" style="display:none;" onclick="btDeleteSession()">Sessie verwijderen</button>
+    </div>
+  </div>
+</div>
+
+<!-- BACKTEST: trade modal -->
+<div id="btTradeModalBg" class="modal-bg" style="display:none;" onclick="btBackdrop(event,'btTradeModalBg')">
+  <div class="modal" style="max-width:500px;">
+    <span class="modal-close" onclick="btCloseModal('btTradeModalBg')">×</span>
+    <h2 id="bttTitle" style="font-family:'Space Grotesk',sans-serif; font-size:18px; margin-bottom:18px;">Nieuwe trade</h2>
+    <div class="form-row c2">
+      <div class="field"><label>Datum</label><input type="date" id="bttDate"></div>
+      <div class="field"><label>Tijd (optioneel)</label><input type="text" id="bttTime" placeholder="HH:MM"></div>
+    </div>
+    <div class="form-row c2">
+      <div class="field"><label>Symbool</label><input type="text" id="bttSymbol" placeholder="bv. NQ" style="text-transform:uppercase;"></div>
+      <div class="field"><label id="bttResultLabel">Resultaat</label><input type="number" step="any" id="bttResult" placeholder="bv. -1 of 2.5"></div>
+    </div>
+    <div class="field" style="margin-bottom:16px;"><label>Richting</label><div class="chips-row" id="bttDir"></div></div>
+    <div class="field" style="margin-bottom:16px;"><label>Setup / tag</label><input type="text" id="bttTag" list="bttTags" placeholder="bv. FVG" style="width:100%;"><datalist id="bttTags"></datalist></div>
+    <div class="field"><label>Notitie</label><input type="text" id="bttNote" placeholder="Optioneel" style="width:100%;"></div>
+    <div style="display:flex; gap:10px; margin-top:22px;">
+      <button type="button" class="btn" id="bttSaveBtn" style="flex:1;" onclick="btSaveTrade()">Opslaan</button>
+      <button type="button" class="btn danger" id="bttDeleteBtn" style="display:none;" onclick="btDeleteTrade()">Verwijderen</button>
+    </div>
+  </div>
 </div>
 
 <!-- JOURNAL MODAL -->
@@ -1139,7 +1388,7 @@ let offSectionOpen = false;       // the "Uitgezet" group in the Accounts tab
    look at one at a time. When data or the account filter changes we just mark
    every view dirty and render the one on screen; the others render the moment
    you open them. Rebuilding all three on every switch was the main source of lag. */
-const viewDirty = { dashboard:true, log:true, coach:true, vault:true };
+const viewDirty = { dashboard:true, log:true, coach:true, vault:true, backtest:true };
 function currentViewName(){
   const v = document.querySelector('.view.active');
   return v ? v.id.replace(/^view-/, '') : 'dashboard';
@@ -1152,6 +1401,7 @@ function flushView(name){
     else if(name==='log') renderLog();
     else if(name==='coach') renderCoach();
     else if(name==='vault') renderVault();
+    else if(name==='backtest') renderBacktest();
   }catch(e){ console.error('render '+name, e); }
 }
 function refreshViews(){
@@ -4306,6 +4556,1560 @@ async function deleteFinEntry(){
 
 
 /* ============================================================
+   BACKTEST ENGINE — pure functions, no DOM.
+   1) btParseDump   : one big pasted text  ->  clean trades
+   2) computeBacktest: trades + breakeven rule -> every KPI
+   3) btMonteCarlo / btSimulate : "what if" tools
+   ============================================================ */
+const BT_UNIT_MAP = { r:'R', rr:'R', '%':'PCT', pt:'PTS', pts:'PTS', punten:'PTS', point:'PTS', points:'PTS', tick:'PTS', ticks:'PTS',
+                      usd:'USD', eur:'USD', '$':'USD', '€':'USD', '£':'USD' };
+const BT_NUM_RE = /^(?:([+\-])\s?)?(\()?([+\-])?([$€£])?([+\-])?(\d[\d.,]*)(\))?\s?(rr|r|%|pts?|punten|points?|ticks?|usd|eur|\$|€|£)?$/i;
+const BT_MONTHS = { jan:1, feb:2, mar:3, mrt:3, apr:4, may:5, mei:5, jun:6, jul:7, aug:8, sep:9, oct:10, okt:10, nov:11, dec:12 };
+const BT_DIR_WORDS = { long:'long', buy:'long', bull:'long', bullish:'long', koop:'long', kopen:'long',
+                       short:'short', sell:'short', bear:'short', bearish:'short', verkoop:'short', verkopen:'short' };
+const BT_OUT_WORDS = { win:1, winner:1, won:1, winst:1, tp:1, loss:-1, loser:-1, lose:-1, lost:-1, verlies:-1, sl:-1, stopped:-1,
+                       be:0, breakeven:0, 'break-even':0, 'b/e':0, scratch:0 };
+const BT_KNOWN_SYMBOLS = new Set(['NQ','ES','MNQ','MES','YM','MYM','RTY','M2K','CL','MCL','GC','MGC','SI','ZB','ZN','6E','6B','6J','NG',
+  'SPX','SPX500','SP500','US500','NAS100','NAS','NDX','US100','US30','DJI','DOW','DAX','GER40','GER30','DE40','DE30','UK100','FTSE','VIX',
+  'XAUUSD','XAGUSD','GOLD','SILVER','OIL','BTC','ETH','SOL','BTCUSD','ETHUSD','BTCUSDT','ETHUSDT','AAPL','TSLA','NVDA','SPY','QQQ','IWM']);
+
+function btPad(n){ return String(n).padStart(2,'0'); }
+function btValidDate(y,m,d){
+  if(y<1990 || y>2100 || m<1 || m>12 || d<1 || d>31) return false;
+  const dt = new Date(Date.UTC(y,m-1,d));
+  return dt.getUTCFullYear()===y && dt.getUTCMonth()===m-1 && dt.getUTCDate()===d;
+}
+function btYear2(yy){ return yy < 70 ? 2000+yy : 1900+yy; }
+
+/* digits like 1,250.50 / 1.250,50 / 1,5 / 21500 -> number (null if it is not a plain number, e.g. 05.01.2023) */
+function btParseDigits(body, hasCurrency){
+  const lastDot = body.lastIndexOf('.'), lastCom = body.lastIndexOf(',');
+  let s;
+  const groupsOk = parts => parts.slice(1).every(p=>p.length===3);
+  if(lastDot>=0 && lastCom>=0){
+    s = lastCom > lastDot ? body.replace(/\./g,'').replace(',','.') : body.replace(/,/g,'');
+  } else if(lastCom>=0){
+    const parts = body.split(',');
+    if(parts.length>2){ if(!groupsOk(parts)) return null; s = body.replace(/,/g,''); }
+    else if(hasCurrency && parts[1].length===3 && parts[0].length<=3) s = body.replace(/,/g,'');
+    else s = body.replace(',','.');
+  } else if(lastDot>=0){
+    const parts = body.split('.');
+    if(parts.length>2){ if(!groupsOk(parts)) return null; s = body.replace(/\./g,''); }
+    else s = body;
+  } else s = body;
+  const v = parseFloat(s);
+  return isFinite(v) ? v : null;
+}
+/* token -> { value, unit } or null */
+function btNumber(tok){
+  const m = BT_NUM_RE.exec(String(tok).trim());
+  if(!m) return null;
+  const hasCur = !!m[4];
+  const v = btParseDigits(m[6], hasCur);
+  if(v===null) return null;
+  const neg = m[1]==='-' || m[3]==='-' || m[5]==='-' || (!!m[2] && !!m[7]);
+  let unit = null;
+  if(m[8]) unit = BT_UNIT_MAP[m[8].toLowerCase()] || null;
+  else if(hasCur) unit = 'USD';
+  return { value: neg ? -v : v, unit };
+}
+
+/* ---- dates & times ---- */
+function btFindDate(s){
+  let m;
+  if((m = /(?<![\d])(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?![\d])/.exec(s)))
+    return { kind:'iso', y:+m[1], m:+m[2], d:+m[3], index:m.index, len:m[0].length };
+  if((m = /(?<![\d])(\d{1,2})(?:st|nd|rd|th|e)?\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})(?![\d])/.exec(s)) && BT_MONTHS[m[2].slice(0,3).toLowerCase()])
+    return { kind:'name', y:+m[3], m:BT_MONTHS[m[2].slice(0,3).toLowerCase()], d:+m[1], index:m.index, len:m[0].length };
+  if((m = /\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?![\d])/.exec(s)) && BT_MONTHS[m[1].slice(0,3).toLowerCase()])
+    return { kind:'name', y:+m[3], m:BT_MONTHS[m[1].slice(0,3).toLowerCase()], d:+m[2], index:m.index, len:m[0].length };
+  if((m = /(?<![\d.,+\-])(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2})(?![\d])/.exec(s)))
+    return { kind:'num', a:+m[1], b:+m[2], y: m[3].length===2 ? btYear2(+m[3]) : +m[3], index:m.index, len:m[0].length };
+  if((m = /(?<![\d])((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?![\d])/.exec(s)))
+    return { kind:'compact', y:+m[1], m:+m[2], d:+m[3], index:m.index, len:m[0].length };
+  return null;
+}
+function btResolveDate(f, fmt){
+  if(!f) return null;
+  let y=f.y, mo, d;
+  if(f.kind==='num'){ if(fmt==='mdy'){ mo=f.a; d=f.b; } else { d=f.a; mo=f.b; } }
+  else { mo=f.m; d=f.d; }
+  return btValidDate(y,mo,d) ? `${y}-${btPad(mo)}-${btPad(d)}` : null;
+}
+function btFindTime(s){
+  const re = /(?<![\d:])(\d{1,2}):(\d{2})(?::\d{2})?(?:\.\d+)?\s*(am|pm)?(?![\d:])/ig;
+  let m;
+  while((m = re.exec(s))){
+    let h = +m[1]; const mi = +m[2];
+    if(mi>59) continue;
+    if(m[3]){ const pm = m[3].toLowerCase()==='pm'; if(h>12||h<1) continue; if(pm && h<12) h+=12; if(!pm && h===12) h=0; }
+    if(h>23) continue;
+    return { value:`${btPad(h)}:${btPad(mi)}`, index:m.index, len:m[0].length };
+  }
+  return null;
+}
+function btCut(s, index, len){ return s.slice(0,index) + ' ' + s.slice(index+len); }
+
+/* ---- header recognition ---- */
+const BT_ALIASES = (function(){
+  const A = {};
+  const add = (role, unit, list)=> list.forEach(k=>{ A[k] = { role, unit }; });
+  add('result','R',   ['r','rr','rmultiple','rmult','rmultiples','resultr','rresult','multiple','achievedr','realizedr','rwaarde']);
+  add('result','USD', ['pnl','pl','p&l','profit','profitloss','winst','winstverlies','netpnl','netprofit','gain','nettoresultaat','resultusd','usd','dollar','$']);
+  add('result','PTS', ['points','punten','pts','ticks']);
+  add('result','PCT', ['return','pct','percent','percentage','%','resultpct','rendement']);
+  add('result',null,  ['result','resultaat','uitkomst','outcome','wl','winloss','status']);
+  add('ignore',null,  ['entry','entryprice','exit','exitprice','price','size','qty','quantity','contracts','lots','volume','sl','stoploss','stop','tp','takeprofit','target','risk','riskusd','balance','equity','duration','mae','mfe','id','nr','no','number','#','trade','tradeno','tradenr','commission','fees','fee','swap','slippage']);
+  add('date',null,    ['date','datum','day','dag','opendate','entrydate','closedate','exitdate','time','tijd','datetime','opentime','entrytime','timestamp']);
+  add('dir',null,     ['direction','richting','side','dir','type','position','positie','longshort','buysell']);
+  add('symbol',null,  ['symbol','symbool','instrument','pair','ticker','asset','market','markt','product']);
+  add('tag',null,     ['tag','tags','setup','label','strategy','strategie','model','pattern','patroon','category']);
+  add('note',null,    ['note','notes','notitie','notities','opmerking','opmerkingen','comment','comments','remark','remarks','reden','reason','description','omschrijving']);
+  return A;
+})();
+function btNormHead(h){ return String(h).toLowerCase().replace(/[^a-z0-9&%$#]/g,''); }
+function btDelimiter(line){
+  if(line.indexOf('\t')>=0) return '\t';
+  if(line.indexOf(';')>=0) return ';';
+  if(line.indexOf('|')>=0) return '|';
+  if(line.indexOf(',')>=0) return ',';
+  return null;
+}
+function btSplitCells(line, delim){
+  if(!delim) return [line];
+  const out = []; let cur = '', q = false;
+  for(let i=0;i<line.length;i++){
+    const c = line[i];
+    if(c==='"'){ if(q && line[i+1]==='"'){ cur+='"'; i++; } else q = !q; }
+    else if(c===delim && !q){ out.push(cur.trim()); cur=''; }
+    else cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+function btDetectHeader(line, unitPref){
+  const delim = btDelimiter(line);
+  const cells = btSplitCells(line, delim).map(c=>c.replace(/^"|"$/g,'').trim());
+  const roles = cells.map(c=> BT_ALIASES[btNormHead(c)] || null);
+  const hits = roles.filter(Boolean).length;
+  if(!hits) return null;
+  if(cells.length>=2 && hits<2) return null;
+  // a header has no real numbers/dates in it
+  if(cells.some((c,i)=> !roles[i] && (btNumber(c) || btFindDate(c)))) return null;
+  // which result column do we trust? the one matching the wanted unit, else the first
+  const rc = roles.map((r,i)=> r && r.role==='result' ? i : -1).filter(i=>i>=0);
+  let resultCol = rc.find(i=>roles[i].unit===unitPref);
+  if(resultCol===undefined) resultCol = rc[0];
+  return { delim, roles, resultCol: resultCol===undefined ? -1 : resultCol, cells };
+}
+
+/* ---- one record (a line) -> rows ---- */
+function btDirLoose(t){
+  const k = String(t).toLowerCase().trim();
+  if(BT_DIR_WORDS[k]) return BT_DIR_WORDS[k];
+  if(/^(l|b|up|\+)$/.test(k)) return 'long';
+  if(/^(s|d|down|-)$/.test(k)) return 'short';
+  return null;
+}
+function btLooksSymbol(t){
+  if(!/^[A-Za-z$][A-Za-z0-9._\/!#-]{1,11}$/.test(t)) return false;
+  const u = t.replace(/^\$/,'').toUpperCase();
+  if(BT_KNOWN_SYMBOLS.has(u)) return true;
+  if(/^[A-Z]{6}$/.test(t)) return true;                       // forex pair
+  if(/^[A-Z]{2,5}\d{1,4}[!]?$/.test(t)) return true;          // NQ1!, SPX500, US30
+  if(/^[A-Z]{2,6}\/[A-Z]{2,6}$/.test(t)) return true;         // EUR/USD
+  if(/^\$[A-Za-z]{1,6}$/.test(t)) return true;                // $AAPL
+  return false;
+}
+function btNormalizeLine(line){
+  return line
+    .replace(/\bRR?\s*[:=]\s*([+\-]?\d[\d.,]*)/gi, '$1R')
+    .replace(/(\d)\s+(rr|r|%|pts?|punten)(?![A-Za-z])/gi, '$1$2')
+    .replace(/(\d)\s+(min|mins|minutes|minuten|sec|uur|hr|h|m)(?![A-Za-z])/gi, '$1$2');
+}
+
+function btParseRecord(line0, H, unitPref){
+  let line = line0.replace(/^\s*#?\d{1,5}[.)]\s+/, '');   // "12) " / "3. " numbering
+  line = btNormalizeLine(line);
+
+  // 1) one line full of bare numbers = many trades ("+2R -1R 1.5 -1 ...")
+  if(!H){
+    const toks = line.split(/[\s;|\t]+|,(?=\s)/).map(x=>x.replace(/,$/,'')).filter(Boolean);
+    if(toks.length>=2 && toks.every(t=>btNumber(t))){
+      return { rows: toks.map(t=>{ const n = btNumber(t); return { date:null, dateRaw:null, time:null, symbol:'', dir:null, result:n.value, unit:n.unit, tag:'', note:'' }; }) };
+    }
+  }
+
+  // 2) date and time first (they contain separators that would confuse the splitting)
+  let rest = line, dateRaw = null, time = null;
+  const f = btFindDate(rest);
+  if(f){ dateRaw = f; rest = btCut(rest, f.index, f.len); }
+  const tm = btFindTime(rest);
+  if(tm){ time = tm.value; rest = btCut(rest, tm.index, tm.len); }
+  rest = rest.replace(/(^|[\s,;|\t])[TZ](?=$|[\s,;|\t])/g, '$1');
+
+  // 3) split into cells / tokens
+  let items, cellMode;
+  if(H){
+    items = btSplitCells(rest, H.delim);
+    cellMode = items.length >= 2 || H.cells.length === 1;
+  } else if(/[\t;|]/.test(rest) || (/,\s/.test(rest) && /[A-Za-z]{2}/.test(rest.replace(/\d+(?:rr|r)\b/gi,'')))){
+    items = rest.split(/\t|;|\||,(?=\s)/).map(x=>x.trim()); cellMode = true;
+  } else {
+    items = rest.split(/\s+/).filter(Boolean); cellMode = false;
+  }
+  if(H && !cellMode) H = null;   // headerless fallback for odd lines
+
+  // 4) classify
+  const nums = [];            // { value, unit, col }
+  let symbol='', dir=null, tag='', outcome=null; const notes = [];
+  const takeWord = (w, role)=>{
+    const k = w.toLowerCase();
+    if(role!=='symbol' && role!=='tag' && role!=='note'){
+      if(BT_DIR_WORDS[k] && !dir){ dir = BT_DIR_WORDS[k]; return true; }
+      if(k in BT_OUT_WORDS && outcome===null){ outcome = BT_OUT_WORDS[k]; return true; }
+    }
+    return false;
+  };
+  items.forEach((cell, idx)=>{
+    if(!cell) return;
+    const role = H && H.roles[idx] ? H.roles[idx] : null;
+    if(role && role.role==='ignore') return;
+    if(role && role.role==='date') return;
+    if(role && role.role==='symbol'){ symbol = symbol || cell; return; }
+    if(role && role.role==='tag'){ tag = tag || cell; return; }
+    if(role && role.role==='note'){ notes.push(cell); return; }
+    if(role && role.role==='dir'){ const d = btDirLoose(cell); if(d) dir = dir || d; return; }
+    const isResultCol = !!role && role.role==='result';
+    if(isResultCol && idx!==H.resultCol){ // a second result column we don't use (other unit)
+      const n = btNumber(cell); if(!n){ const k = cell.toLowerCase(); if(k in BT_OUT_WORDS && outcome===null) outcome = BT_OUT_WORDS[k]; }
+      return;
+    }
+    const n = btNumber(cell);
+    if(n){ nums.push({ value:n.value, unit: n.unit || (isResultCol ? role.unit : null), col:idx, fromCol:isResultCol }); return; }
+    // a cell with several words: only pick out direction / outcome / symbol words; the rest is note
+    const words = cell.split(/\s+/).filter(Boolean);
+    if(words.length===1){
+      const w = words[0];
+      if(takeWord(w, role && role.role)) return;
+      if(w[0]==='#' && w.length>1){ tag = tag || w.slice(1); return; }
+      const mt = /^(tag|setup)\s*[:=]\s*(.+)$/i.exec(w);
+      if(mt){ tag = tag || mt[2]; return; }
+      if(!symbol && btLooksSymbol(w)){ symbol = w.replace(/^\$/,'').toUpperCase(); return; }
+      notes.push(w); return;
+    }
+    const leftover = [];
+    words.forEach(w=>{
+      if(takeWord(w)) return;
+      if(w[0]==='#' && w.length>1){ tag = tag || w.slice(1); return; }
+      if(!symbol && btLooksSymbol(w)){ symbol = w.replace(/^\$/,'').toUpperCase(); return; }
+      // in whitespace mode a loose number among the words is a candidate too
+      if(!cellMode){ const nn = btNumber(w); if(nn){ nums.push({ value:nn.value, unit:nn.unit, col:idx, fromCol:false }); return; } }
+      leftover.push(w);
+    });
+    if(leftover.length) notes.push(leftover.join(' '));
+  });
+
+  // 5) pick the result
+  let pick = null;
+  const roleNums = nums.filter(n=>n.fromCol);
+  if(roleNums.length) pick = roleNums[0];
+  else if(nums.length){
+    const explicit = nums.filter(n=>n.unit);
+    if(explicit.length){
+      const match = explicit.filter(n=>n.unit===unitPref);
+      pick = (match.length ? match : explicit).slice(-1)[0];
+    } else {
+      let pool = nums;
+      if(unitPref==='R' || unitPref==='PCT'){ const small = nums.filter(n=>Math.abs(n.value)<=100); if(small.length) pool = small; }
+      pick = pool[pool.length-1];
+    }
+  }
+  let result = null, unit = null;
+  if(pick){
+    result = pick.value; unit = pick.unit;
+    if(outcome===1) result = Math.abs(result);
+    else if(outcome===-1) result = -Math.abs(result);
+  } else if(outcome===0) result = 0;
+  else return { error: outcome===null ? 'Geen resultaat (getal) gevonden' : 'Win/loss zonder getal' };
+  if(!isFinite(result)) return { error:'Onleesbaar getal' };
+  // numbers left in a note must not leak (e.g. "5" from "5 min")
+  return { rows:[{ date:null, dateRaw, time, symbol, dir, result, unit, tag, note: notes.join(' ').replace(/(\d)(min|mins|minutes|minuten|sec|uur|hr)\b/gi,'$1 $2').trim() }] };
+}
+
+/* ---- the whole dump ---- */
+function btParseDump(text, opts){
+  opts = opts || {};
+  const unitPref = opts.unit || 'R';
+  const out = { rows:[], skipped:[], detectedUnit:null, dateFmt:null, header:false, years:{}, undated:0, badDates:0, lines:0 };
+  const lines = String(text||'').replace(/\r\n?/g,'\n').replace(/[−–—]/g,'-').replace(/ /g,' ').split('\n');
+  let H = null, first = true;
+  lines.forEach((raw, i)=>{
+    const line = raw.trim();
+    if(!line) return;
+    if(/^(\/\/|#\s)/.test(line)) return;
+    out.lines++;
+    if(first){
+      first = false;
+      const h = btDetectHeader(line, unitPref);
+      if(h){ H = h; out.header = true; return; }
+    }
+    if(/^(totaal|total|sum|som|gemiddelde|average|avg)\b/i.test(line)){ out.skipped.push({ n:i+1, text:line, reason:'Totaalregel' }); return; }
+    let res;
+    try{ res = btParseRecord(line, H, unitPref); }catch(e){ res = { error:'Kon regel niet lezen' }; }
+    if(res.error){ out.skipped.push({ n:i+1, text:line, reason:res.error }); return; }
+    res.rows.forEach(r=>{ r.n = i+1; out.rows.push(r); });
+  });
+
+  // date format: DD/MM unless the data proves MM/DD
+  let dmy=0, mdy=0;
+  out.rows.forEach(r=>{ const f=r.dateRaw; if(f && f.kind==='num'){ if(f.a>12 && f.b<=12) dmy++; else if(f.b>12 && f.a<=12) mdy++; } });
+  out.dateFmt = opts.dateFmt && opts.dateFmt!=='auto' ? opts.dateFmt : (mdy>dmy ? 'mdy' : 'dmy');
+  out.rows.forEach(r=>{
+    if(r.dateRaw){
+      r.date = btResolveDate(r.dateRaw, out.dateFmt);
+      if(!r.date) out.badDates++;
+    }
+    delete r.dateRaw;
+    if(r.date){ const y = r.date.slice(0,4); out.years[y] = (out.years[y]||0)+1; } else out.undated++;
+    if(!r.symbol && opts.symbol) r.symbol = String(opts.symbol).toUpperCase();
+  });
+
+  // which unit does the data speak?
+  const uc = {}; let withUnit = 0;
+  out.rows.forEach(r=>{ if(r.unit){ uc[r.unit] = (uc[r.unit]||0)+1; withUnit++; } });
+  if(withUnit && withUnit >= out.rows.length*0.5){
+    out.detectedUnit = Object.keys(uc).sort((a,b)=>uc[b]-uc[a])[0];
+    out.mixedUnits = Object.keys(uc).length>1;
+    out.unitCounts = uc;
+  }
+  return out;
+}
+
+/* ============================================================
+   KPI ENGINE
+   ============================================================ */
+function btCls(r, be){ return Math.abs(r) <= be + 1e-12 ? 'be' : (r>0 ? 'win' : 'loss'); }
+function btOrder(trades){
+  const arr = trades.slice();
+  const allDated = arr.length>0 && arr.every(t=>t.date);
+  if(allDated) arr.sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : (a.time||'')<(b.time||'')?-1 : (a.time||'')>(b.time||'')?1 : (a.seq||0)-(b.seq||0));
+  else arr.sort((a,b)=>(a.seq||0)-(b.seq||0));
+  return arr;
+}
+const BT_DAYS = ['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
+function btWeekday(date){ const [y,m,d] = date.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
+
+function btGroupStats(items, be, beZero){
+  let w=0,l=0,b=0,gp=0,gl=0,net=0;
+  items.forEach(t=>{
+    const c = btCls(t.result, be);
+    const v = c==='be' && beZero ? 0 : t.result;
+    net += v;
+    if(c==='win'){ w++; gp += t.result; } else if(c==='loss'){ l++; gl += -t.result; } else b++;
+  });
+  const dec = w+l;
+  return { n:items.length, w, l, b, net, wr: dec ? w/dec*100 : null, pf: gl>0 ? gp/gl : (gp>0 ? Infinity : null), avg: items.length ? net/items.length : null };
+}
+function btGroupBy(list, keyFn, be, beZero){
+  const m = new Map();
+  list.forEach(t=>{ const k = keyFn(t); if(k===null||k===undefined||k==='') return; if(!m.has(k)) m.set(k, []); m.get(k).push(t); });
+  return [...m.entries()].map(([key, items])=>({ key, ...btGroupStats(items, be, beZero) }));
+}
+function btNiceStep(range, target){
+  const raw = range / Math.max(1,target);
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / p;
+  return (f<=1 ? 1 : f<=2 ? 2 : f<=2.5 ? 2.5 : f<=5 ? 5 : 10) * p;
+}
+
+function computeBacktest(trades, cfg){
+  cfg = cfg || {};
+  const be = Math.max(0, +cfg.be || 0), beZero = !!cfg.beZero;
+  const list = btOrder(trades);
+  const n = list.length;
+  const S = { n, be, beZero, list };
+  const vals = new Array(n), classes = new Array(n), eq = new Array(n);
+  let w=0,l=0,b=0,gp=0,gl=0,net=0, best=null, worst=null;
+  let peak=0, maxDD=0, ddStart=-1, longestDD=0, curDDLen=0, e=0;
+  let streakW=0,streakL=0,maxW=0,maxL=0, lastKind=null, curStreak=0;
+  list.forEach((t,i)=>{
+    const c = btCls(t.result, be); classes[i] = c;
+    const v = c==='be' && beZero ? 0 : t.result; vals[i] = v;
+    e += v; eq[i] = e; net += v;
+    if(c==='win'){ w++; gp += t.result; if(streakL){ streakL=0; } streakW++; if(streakW>maxW) maxW=streakW; }
+    else if(c==='loss'){ l++; gl += -t.result; if(streakW){ streakW=0; } streakL++; if(streakL>maxL) maxL=streakL; }
+    else b++;
+    if(best===null || t.result > best.result) best = t;
+    if(worst===null || t.result < worst.result) worst = t;
+    if(e > peak){ peak = e; curDDLen = 0; } else { curDDLen++; if(curDDLen>longestDD) longestDD = curDDLen; }
+    if(peak - e > maxDD) maxDD = peak - e;
+  });
+  S.vals = vals; S.classes = classes; S.eq = eq;
+  // underwater curve
+  { let p = 0; S.dd = eq.map(x=>{ if(x>p) p=x; return x - p; }); }
+  const dec = w+l;
+  S.w=w; S.l=l; S.b=b; S.decided=dec;
+  S.net = net; S.grossProfit = gp; S.grossLoss = gl;
+  S.winrate = dec ? w/dec*100 : null;
+  S.winrateAll = n ? w/n*100 : null;
+  S.pf = gl>0 ? gp/gl : (gp>0 ? Infinity : null);
+  S.avgWin = w ? gp/w : null;
+  S.avgLoss = l ? gl/l : null;                 // positive magnitude
+  S.payoff = (S.avgWin!==null && S.avgLoss) ? S.avgWin/S.avgLoss : null;
+  S.expectancy = n ? net/n : null;             // per trade, BE included as the (near) zero it is
+  S.expectancyDecided = dec ? (gp-gl)/dec : null;
+  S.needWinrate = S.payoff ? 100/(1+S.payoff) : null;
+  S.kelly = (S.payoff && S.winrate!==null) ? (S.winrate/100 - (1-S.winrate/100)/S.payoff)*100 : null;
+  S.best = best; S.worst = worst;
+  S.maxWinStreak = maxW; S.maxLossStreak = maxL;
+  { // current streak (BE does not break it)
+    let k=0, kind=null;
+    for(let i=n-1;i>=0;i--){ const c = classes[i]; if(c==='be') continue; if(kind===null) kind=c; if(c===kind) k++; else break; }
+    S.curStreak = { kind, n:k };
+  }
+  S.maxDD = maxDD; S.longestDD = longestDD;
+  S.curDD = n ? peak - eq[n-1] : 0;
+  S.recovery = maxDD>0 ? net/maxDD : null;
+  if(n>=2){
+    const mean = net/n; let ss = 0; vals.forEach(v=>{ ss += (v-mean)*(v-mean); });
+    S.std = Math.sqrt(ss/(n-1));
+    S.sqn = S.std>0 ? mean/S.std*Math.sqrt(Math.min(n,100)) : null;
+  } else { S.std = null; S.sqn = null; }
+
+  // time
+  const dated = list.filter(t=>t.date);
+  S.first = dated.length ? dated[0].date : null; S.last = dated.length ? dated[dated.length-1].date : null;
+  S.months = btGroupBy(dated, t=>t.date.slice(0,7), be, beZero).sort((a,b)=>a.key<b.key?-1:1);
+  S.profitMonths = S.months.filter(m=>m.net>0).length;
+  if(S.first && S.last){
+    const [y1,m1] = S.first.split('-').map(Number), [y2,m2] = S.last.split('-').map(Number);
+    S.spanMonths = (y2-y1)*12 + (m2-m1) + 1;
+    S.perMonth = dated.length / S.spanMonths;
+  } else { S.spanMonths = null; S.perMonth = null; }
+
+  // breakdowns
+  S.byDir = btGroupBy(list, t=>t.direction||t.dir, be, beZero).sort((a,b)=>a.key<b.key?-1:1);   // long first
+  S.byWeekday = btGroupBy(dated, t=>btWeekday(t.date), be, beZero).sort((a,b)=>((a.key+6)%7)-((b.key+6)%7));
+  S.byHour = btGroupBy(list.filter(t=>t.time), t=>+t.time.slice(0,2), be, beZero).sort((a,b)=>a.key-b.key);
+  S.bySymbol = btGroupBy(list, t=>t.symbol, be, beZero).sort((a,b)=>b.n-a.n);
+  S.byTag = btGroupBy(list, t=>t.tag, be, beZero).sort((a,b)=>b.n-a.n);
+
+  // distribution of results
+  if(n){
+    let mn = Infinity, mx = -Infinity; list.forEach(t=>{ if(t.result<mn) mn=t.result; if(t.result>mx) mx=t.result; });
+    let step = btNiceStep(Math.max(mx-mn, 1e-9), Math.min(28, Math.max(8, Math.round(Math.sqrt(n)*1.6))));
+    if(cfg.unit==='R' && step<0.25) step = 0.25;
+    let lo = Math.floor(mn/step)*step, hi = Math.ceil(mx/step)*step;
+    if(hi===lo) hi = lo + step;
+    while((hi-lo)/step > 60) step *= 2;
+    const nb = Math.round((hi-lo)/step);
+    const bins = [];
+    for(let i=0;i<nb;i++) bins.push({ lo: lo+i*step, hi: lo+(i+1)*step, count:0 });
+    list.forEach(t=>{ let i = Math.floor((t.result-lo)/step + 1e-9); if(i>=nb) i = nb-1; if(i<0) i=0; bins[i].count++; });
+    bins.forEach(bn=>{ const c = (bn.lo+bn.hi)/2; bn.cls = (be>0 && bn.lo >= -be-1e-9 && bn.hi <= be+1e-9) ? 'be' : btCls(c, be); });
+    S.bins = bins; S.binStep = step;
+  } else S.bins = [];
+  return S;
+}
+
+/* ---- Monte Carlo: draw n trades (with replacement) from your own results, many times ---- */
+function btRng(seed){ let a = seed>>>0; return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a>>>15, 1|a); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14)>>>0)/4294967296; }; }
+function btPct(sorted, p){ if(!sorted.length) return null; const i = (sorted.length-1)*p; const lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo); }
+function btMonteCarlo(vals, sims){
+  const n = vals.length;
+  if(n < 10) return null;
+  sims = sims || (n>5000 ? 400 : 1000);
+  let seed = 7919 + n; vals.forEach((v,i)=>{ seed = (seed*31 + Math.round(v*1000) + i) | 0; });
+  const rnd = btRng(seed);
+  const K = Math.min(n, 50);
+  const cps = []; for(let k=1;k<=K;k++) cps.push(Math.max(1, Math.round(k*n/K)));
+  const finals = new Array(sims), dds = new Array(sims), atCp = cps.map(()=>new Array(sims));
+  let profitable = 0;
+  for(let s=0;s<sims;s++){
+    let e=0, peak=0, dd=0, ci=0;
+    for(let i=1;i<=n;i++){
+      e += vals[(rnd()*n)|0];
+      if(e>peak) peak=e; else if(peak-e>dd) dd = peak-e;
+      if(i===cps[ci]){ atCp[ci][s] = e; ci++; }
+    }
+    finals[s] = e; dds[s] = dd; if(e>0) profitable++;
+  }
+  finals.sort((a,b)=>a-b); dds.sort((a,b)=>a-b);
+  const fan = { x:cps, p5:[], p50:[], p95:[] };
+  atCp.forEach(arr=>{ arr.sort((a,b)=>a-b); fan.p5.push(btPct(arr,0.05)); fan.p50.push(btPct(arr,0.5)); fan.p95.push(btPct(arr,0.95)); });
+  return { sims, n, finalP5:btPct(finals,0.05), finalP50:btPct(finals,0.5), finalP95:btPct(finals,0.95),
+           ddP50:btPct(dds,0.5), ddP95:btPct(dds,0.95), pProfit: profitable/sims*100, fan };
+}
+
+/* ---- "what if I risk x% per trade?" (results in R) ---- */
+function btSimulate(vals, start, riskPct, compound){
+  const out = { curve:[start], final:start, maxDDpct:0, ruin:false };
+  let bal = start, peak = start;
+  for(let i=0;i<vals.length;i++){
+    const risk = (compound ? bal : start) * riskPct/100;
+    bal += risk * vals[i];
+    if(bal<=0){ bal = 0; out.ruin = true; out.curve.push(0); for(let k=i+1;k<vals.length;k++) out.curve.push(0); break; }
+    out.curve.push(bal);
+    if(bal>peak) peak = bal;
+    const dd = (peak-bal)/peak*100; if(dd>out.maxDDpct) out.maxDDpct = dd;
+  }
+  out.final = out.curve[out.curve.length-1];
+  out.ret = (out.final/start - 1)*100;
+  return out;
+}
+
+/* ============================================================
+   BACKTEST (UI) — sessions per year, data drop, KPIs
+   ============================================================ */
+const BT_COLORS = ['#8B7CF6','#2FD6A7','#E0B84B','#5BB8FF','#FF9F5B','#C792EA','#F2555C','#7FDBCA'];
+const BT_UNIT_SHORT = { R:'R', USD:'$', PTS:'pt', PCT:'%' };
+const BT_UNIT_LONG = { R:'R-multiple', USD:'Dollar ($)', PTS:'Punten', PCT:'Procent (%)' };
+const BT_BE_PRESETS = { R:[0,0.1,0.25,0.5], USD:[0,5,10,25], PTS:[0,1,2,5], PCT:[0,0.1,0.25,0.5] };
+const BT_BE_STEP = { R:0.05, USD:5, PTS:1, PCT:0.05 };
+
+let btSessions = [], btTrades = [], btLoaded = false, btLoading = false, btError = null;
+let btSelected = 'overview';
+try{ const _s = localStorage.getItem('journalx.btSelected'); if(_s) btSelected = _s; }catch(e){}
+let btIndexCache = null;
+let btBreakTab = 'dir', btTradeFilter = 'all', btTradeLimit = 50, btEqMode = 'cum', btSimCompound = true;
+let btDropOpen = null;             // null = decide automatically
+let btCurrent = null;              // { s, S } of the session on screen
+const btDrop = { target:'auto', mode:'append', fmt:'auto', parsed:null, importing:false, dupTouched:false };
+const btTimers = {};
+let btMcCache = { key:'', mc:null };
+
+function btDebounce(key, fn, ms){ clearTimeout(btTimers[key]); btTimers[key] = setTimeout(fn, ms); }
+function btFmt(v, unit, signed){
+  if(v===null || v===undefined || !isFinite(v)) return v===Infinity ? '∞' : '—';
+  const sg = signed && v>0 ? '+' : '';
+  if(unit==='USD') return (v<0 ? '-' : sg) + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  if(unit==='PCT') return sg + v.toFixed(2) + '%';
+  if(unit==='PTS') return sg + (Math.abs(v)>=100 ? v.toFixed(1) : v.toFixed(2)) + ' pt';
+  return sg + v.toFixed(2) + 'R';
+}
+function btFmtAxis(v, unit){
+  const a = Math.abs(v);
+  const n = a>=1000 ? (a/1000).toFixed(a>=10000?0:1)+'k' : (a%1===0 ? String(a) : a.toFixed(1));
+  const s = v<0 ? '-' : '';
+  return unit==='USD' ? s+'$'+n : unit==='PCT' ? s+n+'%' : unit==='PTS' ? s+n : s+n+'R';
+}
+function btNum(v, d){ return v===null||v===undefined||!isFinite(v) ? '—' : v.toFixed(d===undefined?2:d); }
+function btPf(v){ return v===Infinity ? '∞' : v===null ? '—' : v.toFixed(2); }
+function btSign(v){ return v>0 ? 'pos' : v<0 ? 'neg' : 'neutral'; }
+
+/* ---------- data access ---------- */
+function btMapSession(r){
+  return { id:r.id, name:r.name||'Sessie', year:r.year==null ? null : Number(r.year), strategy:r.strategy||'', unit:r.unit||'R',
+           be:Number(r.be_threshold)||0, beZero:!!r.be_as_zero, startBalance:r.start_balance==null ? 10000 : Number(r.start_balance),
+           riskPct:r.risk_pct==null ? 1 : Number(r.risk_pct), notes:r.notes||'', createdAt:r.created_at||'' };
+}
+function btMapTrade(r){
+  return { id:r.id, sessionId:r.session_id, seq:Number(r.seq)||0, date:r.trade_date ? String(r.trade_date).slice(0,10) : null,
+           time:r.trade_time||null, symbol:r.symbol||'', direction:r.direction||null, result:Number(r.result), tag:r.tag||'', note:r.note||'' };
+}
+const BT_TRADE_COLS = 'id,session_id,seq,trade_date,trade_time,symbol,direction,result,tag,note';
+function btSortedSessions(){
+  return btSessions.slice().sort((a,b)=>{
+    const ya = a.year==null ? 9999 : a.year, yb = b.year==null ? 9999 : b.year;
+    return ya!==yb ? ya-yb : String(a.createdAt).localeCompare(String(b.createdAt));
+  });
+}
+function btSession(id){ return btSessions.find(s=>s.id===id) || null; }
+function btIndex(){
+  if(!btIndexCache){ btIndexCache = new Map(); btTrades.forEach(t=>{ if(!btIndexCache.has(t.sessionId)) btIndexCache.set(t.sessionId, []); btIndexCache.get(t.sessionId).push(t); }); }
+  return btIndexCache;
+}
+function btTradesOf(id){ return btIndex().get(id) || []; }
+function btStats(s){ return computeBacktest(btTradesOf(s.id), { be:s.be, beZero:s.beZero, unit:s.unit }); }
+
+async function btLoad(){
+  if(btLoading) return;
+  btLoading = true; btError = null;
+  try{
+    const sRes = await supabase.from('backtest_sessions').select('*').order('created_at', { ascending:true });
+    if(sRes.error) throw sRes.error;
+    btSessions = (sRes.data||[]).map(btMapSession);
+    const all = []; let from = 0; const size = 1000;
+    for(;;){
+      // Supabase hands out 1000 rows per request, so a big backtest is fetched page by page.
+      const { data, error } = await supabase.from('backtest_trades').select(BT_TRADE_COLS)
+        .order('session_id').order('seq').order('id').range(from, from+size-1);
+      if(error) throw error;
+      (data||[]).forEach(r=>all.push(btMapTrade(r)));
+      const t = document.getElementById('btLoadTxt'); if(t) t.textContent = all.length + ' trades geladen…';
+      if(!data || data.length < size) break;
+      from += size;
+    }
+    btTrades = all; btIndexCache = null;
+  }catch(e){
+    console.error('backtest load failed', e);
+    btError = (e && e.message) || 'onbekende fout'; btSessions = []; btTrades = []; btIndexCache = null;
+  }
+  btLoaded = true; btLoading = false;
+}
+async function btReload(){ btLoaded = false; btLoading = false; await btLoad(); btRenderAll(); }
+
+/* ---------- top-level render ---------- */
+function renderBacktest(){
+  viewDirty.backtest = false;
+  const body = $('#btBody'); if(!body) return;
+  if(!btLoaded){
+    btDestroyCharts();
+    body.innerHTML = `<div class="vault-empty"><div class="big">Backtest laden…</div><p id="btLoadTxt">Even geduld.</p></div>`;
+    $('#btDrop').style.display = 'none'; $('#btHead').innerHTML = ''; $('#btSessions').innerHTML = '';
+    btLoad().then(()=>{ viewDirty.backtest = true; if(currentViewName()==='backtest') flushView('backtest'); });
+    return;
+  }
+  btRenderAll();
+}
+function btRenderAll(){
+  const banner = $('#btBanner');
+  if(btError){
+    banner.style.display = 'block';
+    banner.innerHTML = `<strong>De Backtest-tabellen ontbreken nog.</strong> Draai <code>supabase_migration_backtest.sql</code> (of <code>supabase_migration_ALLES.sql</code>) in je Supabase SQL Editor en ververs daarna deze pagina. <span style="color:var(--text-faint);">(${escHtml(btError)})</span>`;
+    $('#btSessions').innerHTML = ''; $('#btHead').innerHTML = ''; $('#btBody').innerHTML = ''; $('#btDrop').style.display = 'none';
+    $('#btAddTradeBtn').style.display = 'none';
+    return;
+  }
+  banner.style.display = 'none';
+  if(btSelected!=='overview' && !btSession(btSelected)) btSelected = 'overview';
+  $('#btDrop').style.display = '';
+  $('#btAddTradeBtn').style.display = btSelected==='overview' ? 'none' : '';
+  btRenderSessions(); btRenderHead(); btRenderTargetChips(); btApplyDropOpen(); btRenderBody();
+  if(btDrop.parsed || $('#btText').value.trim()) btAnalyze();
+}
+function btSelect(id){
+  btSelected = id;
+  try{ localStorage.setItem('journalx.btSelected', id); }catch(e){}
+  btTradeFilter = 'all'; btTradeLimit = 50; btBreakTab = 'auto'; btEqMode = 'cum';
+  btDrop.target = id==='overview' ? 'auto' : id; btDrop.dupTouched = false;
+  btRenderAll();
+  window.scrollTo(0,0);
+}
+function btRenderSessions(){
+  const list = btSortedSessions();
+  $('#btSessions').innerHTML =
+    `<div class="bt-chip${btSelected==='overview'?' active':''}" onclick="btSelect('overview')">Overzicht</div>` +
+    list.map(s=>`<div class="bt-chip${btSelected===s.id?' active':''}" onclick="btSelect('${s.id}')">${escHtml(s.name)}<span class="n">${btTradesOf(s.id).length}</span></div>`).join('') +
+    `<div class="bt-chip add" onclick="btOpenSession()">+ Nieuwe sessie</div>`;
+}
+
+/* ---------- session header + breakeven control ---------- */
+function btRenderHead(){
+  const el = $('#btHead');
+  if(btSelected==='overview'){ el.innerHTML = ''; return; }
+  const s = btSession(btSelected); if(!s){ el.innerHTML=''; return; }
+  const U = s.unit;
+  const presets = BT_BE_PRESETS[U].map(v=>`<div class="chip${Math.abs(v-s.be)<1e-9?' selected':''}" data-tone="be" onclick="btBePreset(${v})">${v===0?'Uit':'±'+v}</div>`).join('');
+  el.innerHTML = `<div class="panel bt-head">
+    <div class="bt-head-top">
+      <div style="min-width:0;">
+        <div class="bt-head-name">${escHtml(s.name)} ${s.year ? `<span class="tag">${s.year}</span>` : ''}<span class="tag">${BT_UNIT_LONG[U]}</span></div>
+        <div class="bt-head-sub">${s.strategy ? escHtml(s.strategy) : 'Nog geen strategie-omschrijving — voeg er een toe via Instellingen.'}</div>
+      </div>
+      <button type="button" class="btn secondary small" onclick="btOpenSession('${s.id}')">Instellingen</button>
+    </div>
+    <div class="bt-be">
+      <div class="bt-be-title">Breakeven-drempel</div>
+      <div class="bt-be-row">
+        <div class="bt-stepper"><button type="button" onclick="btBeStep(-1)" aria-label="Lager">−</button><input type="number" id="btBeInput" step="any" min="0" value="${s.be}" oninput="btSetBe(this.value)"><span class="u">${BT_UNIT_SHORT[U]}</span><button type="button" onclick="btBeStep(1)" aria-label="Hoger">+</button></div>
+        <div class="chips-row" id="btBePresets">${presets}</div>
+        <span class="checkfield"><input type="checkbox" id="btBeZero" ${s.beZero?'checked':''} onchange="btSetBeZero(this.checked)"><label for="btBeZero">BE telt als 0 in resultaat</label></span>
+      </div>
+      <div class="bt-be-note" id="btBeNote"></div>
+    </div>
+  </div>`;
+  btUpdateBeNote();
+}
+function btUpdateBeNote(){
+  const note = $('#btBeNote'); const s = btSession(btSelected); if(!note || !s) return;
+  const list = btTradesOf(s.id);
+  const inBe = list.filter(t=>Math.abs(t.result) <= s.be + 1e-12).length;
+  if(!list.length){ note.innerHTML = `Trades met een resultaat binnen ±<b>${btFmt(s.be,s.unit)}</b> tellen als breakeven en blijven buiten je winrate, profit factor en gemiddelden.`; return; }
+  if(s.be===0 && inBe===0){ note.innerHTML = `Drempel staat uit: alleen trades met exact 0 tellen als breakeven. Stel een drempel in om kleine winsten en verliezen als BE te laten tellen.`; return; }
+  note.innerHTML = `<b>${inBe}</b> van je ${list.length} trades (${(inBe/list.length*100).toFixed(1)}%) vallen binnen ±${btFmt(s.be,s.unit)} en tellen als breakeven — niet in winrate, profit factor of gemiddelde winst/verlies.${s.beZero ? ' Hun resultaat telt als 0.' : ''}`;
+}
+function btSetBe(raw){
+  const s = btSession(btSelected); if(!s) return;
+  let v = parseFloat(String(raw).replace(',','.')); if(!isFinite(v) || v<0) v = 0;
+  s.be = v;
+  document.querySelectorAll('#btBePresets .chip').forEach((c,i)=>c.classList.toggle('selected', Math.abs(BT_BE_PRESETS[s.unit][i]-v)<1e-9));
+  btUpdateBeNote();
+  btDebounce('beBody', btRenderBody, 140);
+  btDebounce('beSave', ()=>btPersistSession(s, { be_threshold:s.be }), 600);
+}
+function btBePreset(v){ const i = $('#btBeInput'); if(i) i.value = v; btSetBe(v); }
+function btBeStep(dir){
+  const s = btSession(btSelected); if(!s) return;
+  const step = BT_BE_STEP[s.unit];
+  const v = Math.max(0, Math.round((s.be + dir*step)*1e6)/1e6);
+  const i = $('#btBeInput'); if(i) i.value = v; btSetBe(v);
+}
+function btSetBeZero(on){
+  const s = btSession(btSelected); if(!s) return;
+  s.beZero = !!on; btUpdateBeNote(); btDebounce('beBody', btRenderBody, 60);
+  btPersistSession(s, { be_as_zero:s.beZero });
+}
+async function btPersistSession(s, fields){
+  try{
+    const { error } = await supabase.from('backtest_sessions').update(fields).eq('id', s.id);
+    if(error) throw error;
+  }catch(e){ console.error('session save failed', e); showToast('Opslaan mislukt: ' + (e.message||'')); }
+}
+
+/* ---------- body ---------- */
+function btDestroyCharts(){ ['btEq','btDD','btHist','btPeriod','btMC','btSim','btCmpEq','btCmpNet'].forEach(id=>{ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }); }
+function btTile(label, value, cls, sub, tip){
+  return `<div class="kpi"${tip?` title="${escHtml(tip)}"`:''}><div class="label">${label}</div><div class="value ${cls||'neutral'}">${value}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
+}
+function btRenderBody(){
+  const el = $('#btBody'); if(!el) return;
+  btDestroyCharts();
+  if(btSelected==='overview'){ btRenderOverview(el); return; }
+  const s = btSession(btSelected); if(!s){ el.innerHTML=''; return; }
+  const trades = btTradesOf(s.id);
+  if(!trades.length){
+    btCurrent = null;
+    el.innerHTML = `<div class="vault-empty"><div class="big">Deze sessie is nog leeg</div>
+      <p>Plak je trades in de <b>Data drop</b> hierboven, of voeg ze één voor één toe met <b>+ Trade</b>. Zodra er data staat zie je winrate, profit factor, drawdown en nog veel meer.</p>
+      <button type="button" class="btn" onclick="btOpenDrop(true)">Open de Data drop</button></div>`;
+    return;
+  }
+  const S = computeBacktest(trades, { be:s.be, beZero:s.beZero, unit:s.unit });
+  btCurrent = { s, S };
+  const U = s.unit;
+  const MC = btGetMc(s, S);
+
+  // ----- hero -----
+  const tot = S.w + S.l + S.b, R = 54, C = 2*Math.PI*R;
+  const arc = (n, color, off)=> n ? `<circle cx="70" cy="70" r="${R}" fill="none" stroke="${color}" stroke-width="14" stroke-dasharray="${Math.max(0,(n/tot)*C-2).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"/>` : '';
+  const ring = `<svg viewBox="0 0 140 140" role="img" aria-label="Verdeling winst, verlies en breakeven"><circle cx="70" cy="70" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="14"/>
+    ${arc(S.w,'#2FD6A7',0)}${arc(S.l,'#F2555C',S.w/tot*C)}${arc(S.b,'#E0B84B',(S.w+S.l)/tot*C)}</svg>`;
+  const period = S.first ? `${fmtDay(S.first)} → ${fmtDay(S.last)}` : 'zonder datums';
+  const hero = `<div class="vault-hero ${S.net>0?'pos':S.net<0?'neg':''}">
+    <div>
+      <div class="vault-eyebrow">Netto resultaat · ${escHtml(s.name)}</div>
+      <div class="vault-net ${S.net>0?'pos':S.net<0?'neg':''}" style="${S.net===0?'color:var(--text-dim);':''}">${btFmt(S.net,U,true)}</div>
+      <div class="vault-sub">
+        <span><b>${S.n}</b> trades</span>
+        <span>Verwachting <b style="color:${S.expectancy>0?'var(--pos)':S.expectancy<0?'var(--neg)':'var(--text)'};">${btFmt(S.expectancy,U,true)}</b> per trade</span>
+        <span>${period}</span>
+      </div>
+    </div>
+    <div class="bt-ring-wrap">
+      <div class="bt-ring">${ring}<div class="c"><b>${S.winrate===null?'—':S.winrate.toFixed(1)+'%'}</b><span>winrate</span></div></div>
+      <div class="bt-legend">
+        <div><i style="background:var(--pos)"></i>Winst<b>${S.w}</b></div>
+        <div><i style="background:var(--neg)"></i>Verlies<b>${S.l}</b></div>
+        <div><i style="background:var(--be)"></i>Breakeven<b>${S.b}</b></div>
+      </div>
+    </div>
+  </div>`;
+
+  // ----- KPI tiles -----
+  const needTxt = S.needWinrate===null ? '' : `nodig voor break-even: ${S.needWinrate.toFixed(0)}%`;
+  const row1 =
+    btTile('Winrate', S.winrate===null?'—':S.winrate.toFixed(1)+'%', S.winrate!==null && S.needWinrate!==null ? (S.winrate>=S.needWinrate?'pos':'neg') : 'neutral', `${S.w} winst · ${S.l} verlies`, 'Winnaars gedeeld door winnaars + verliezers. Breakeven-trades tellen niet mee.') +
+    btTile('Profit factor', btPf(S.pf), S.pf===null?'neutral':S.pf>=1.5?'pos':S.pf<1?'neg':'neutral', 'bruto winst ÷ bruto verlies', 'Boven 1.0 verdien je geld, boven 1.5 is solide, boven 2.0 is sterk.') +
+    btTile('Verwachting', btFmt(S.expectancy,U,true), btSign(S.expectancy), 'per trade · excl. BE: ' + btFmt(S.expectancyDecided,U,true), 'Wat een gemiddelde trade je oplevert (inclusief breakeven-trades).') +
+    btTile('Gem. winst', btFmt(S.avgWin,U,true), S.avgWin?'pos':'neutral', `${S.w} winnaars`, 'Gemiddelde winnende trade (breakeven niet meegeteld).') +
+    btTile('Gem. verlies', S.avgLoss===null?'—':btFmt(-S.avgLoss,U), S.avgLoss?'neg':'neutral', `${S.l} verliezers`, 'Gemiddelde verliezende trade (breakeven niet meegeteld).') +
+    btTile('Payoff (R:R)', S.payoff===null?'—':S.payoff.toFixed(2)+' : 1', S.payoff===null?'neutral':S.payoff>=1?'pos':'neutral', needTxt, 'Gemiddelde winst gedeeld door gemiddeld verlies.');
+  const ddNow = S.curDD>0 ? `nu ${btFmt(-S.curDD,U)} onder piek` : 'op je hoogtepunt';
+  const row2 =
+    btTile('Max drawdown', S.maxDD>0?btFmt(-S.maxDD,U):'—', S.maxDD>0?'neg':'neutral', `langste: ${S.longestDD} trades · ${ddNow}`, 'Grootste daling van je equity vanaf een piek.') +
+    btTile('Herstelfactor', S.recovery===null?'—':S.recovery.toFixed(2), S.recovery===null?'neutral':S.recovery>=3?'pos':S.recovery<1?'neg':'neutral', 'netto ÷ max drawdown', 'Hoeveel keer je grootste drawdown je winst dekt. Hoger is beter.') +
+    btTile('Beste trade', btFmt(S.best.result,U,true), 'pos', btTradeLabel(S.best), 'Je grootste winnaar.') +
+    btTile('Slechtste trade', btFmt(S.worst.result,U,true), S.worst.result<0?'neg':'neutral', btTradeLabel(S.worst), 'Je grootste verliezer.') +
+    btTile('Langste winstreeks', S.maxWinStreak+'', S.maxWinStreak?'pos':'neutral', 'op rij · BE onderbreekt niet', 'Meeste winnende trades achter elkaar. Breakeven-trades onderbreken de reeks niet.') +
+    btTile('Langste verliesreeks', S.maxLossStreak+'', S.maxLossStreak>=8?'neg':'neutral', S.curStreak.n ? `nu: ${S.curStreak.n} ${S.curStreak.kind==='win'?'winst':'verlies'} op rij` : 'op rij', 'Meeste verliezende trades achter elkaar — reken hier mentaal en financieel op.');
+  const sqnTxt = S.sqn===null ? '' : S.sqn<1.6 ? 'zwak' : S.sqn<2 ? 'onder gemiddeld' : S.sqn<2.5 ? 'gemiddeld' : S.sqn<3 ? 'goed' : S.sqn<5 ? 'uitstekend' : S.sqn<7 ? 'top' : 'verdacht goed';
+  const bePct = S.n ? (S.b/S.n*100).toFixed(1) : '0';
+  const kellyTxt = S.kelly===null ? '—' : S.kelly<=0 ? 'geen edge' : S.kelly.toFixed(1)+'%';
+  const mTxt = S.months.length >= 2 ? `${S.profitMonths}/${S.months.length}` : (S.perMonth!==null ? btNum(S.perMonth,1) : (S.std===null?'—':btFmt(S.std,U)));
+  const mLab = S.months.length >= 2 ? 'Winstgevende maanden' : (S.perMonth!==null ? 'Trades per maand' : 'Spreiding (σ)');
+  const mSub = S.months.length >= 2 ? `${(S.profitMonths/S.months.length*100).toFixed(0)}% van de maanden` : (S.perMonth!==null ? 'gemiddeld' : 'standaardafwijking');
+  const row3 =
+    btTile('Breakeven-trades', S.b+'', 'neutral', `${bePct}% · drempel ±${btFmt(s.be,U)}`, 'Trades binnen je BE-drempel. Ze staan buiten winrate, profit factor en gemiddelden.') +
+    btTile('Benodigde winrate', S.needWinrate===null?'—':S.needWinrate.toFixed(1)+'%', 'neutral', S.winrate===null?'':`jij haalt ${S.winrate.toFixed(1)}%`, 'De winrate waarbij je bij jouw gemiddelde R:R precies break-even draait.') +
+    btTile('SQN', S.sqn===null?'—':S.sqn.toFixed(2), S.sqn===null?'neutral':S.sqn>=2.5?'pos':S.sqn<1.6?'neg':'neutral', sqnTxt, 'System Quality Number (Van Tharp): gemiddelde ÷ spreiding × √trades (max 100). Boven 2.5 is goed.') +
+    btTile('Kelly-criterium', kellyTxt, S.kelly>0?'accent':'neutral', S.kelly>0?'speel max de helft hiervan':'', 'Theoretisch optimale inzet per trade. In de praktijk gebruik je hooguit de helft.') +
+    btTile(mLab, mTxt, 'neutral', mSub, '') +
+    btTile('Aantal trades', S.n+'', 'neutral', S.n<30?'⚠ weinig data':S.n<100?'redelijk':'solide steekproef', 'Hoe meer trades, hoe betrouwbaarder de cijfers.');
+
+  // ----- assemble -----
+  const eqChips = U==='R'
+    ? `<div class="chips-row" id="btEqChips"><div class="chip${btEqMode==='cum'?' selected':''}" data-m="cum" onclick="btSetEq('cum')">Resultaat in R</div><div class="chip${btEqMode==='sim'?' selected':''}" data-m="sim" onclick="btSetEq('sim')">Simulatie in $</div></div>` : '';
+  el.innerHTML = hero +
+    `<div class="section-head"><h3>Resultaat</h3><div class="rule"></div></div><div class="kpi-grid">${row1}</div>
+     <div class="section-head" style="margin-top:26px;"><h3>Risico &amp; reeksen</h3><div class="rule"></div></div><div class="kpi-grid">${row2}</div>
+     <div class="section-head" style="margin-top:26px;"><h3>Kwaliteit &amp; edge</h3><div class="rule"></div></div><div class="kpi-grid">${row3}</div>
+     <div class="grid-2 wide-left" style="margin-top:22px;">
+       <div class="panel">
+         <div class="bt-panel-head"><h2>Equity-curve</h2>${eqChips}</div>
+         <div class="desc" id="btEqDesc"></div>
+         <div style="height:260px;"><canvas id="btEq" role="img" aria-label="Cumulatieve resultaten per trade"></canvas></div>
+         <div class="bt-sublabel">Drawdown (onder je piek)</div>
+         <div style="height:110px;"><canvas id="btDD" role="img" aria-label="Drawdown per trade"></canvas></div>
+       </div>
+       <div class="panel">
+         <h2>Slimme samenvatting</h2>
+         <div class="desc">Automatisch afgeleid uit je cijfers.</div>
+         <ul class="vault-insights" id="btInsights"></ul>
+       </div>
+     </div>
+     <div class="grid-2">
+       <div class="panel">
+         <h2>Verdeling van je resultaten</h2>
+         <div class="desc">Hoe vaak je welk resultaat haalt. Rood = verlies, groen = winst.</div>
+         <div style="height:230px;"><canvas id="btHist" role="img" aria-label="Histogram van resultaten"></canvas></div>
+       </div>
+       <div class="panel">
+         <h2 id="btPeriodTitle">Per maand</h2>
+         <div class="desc" id="btPeriodDesc"></div>
+         <div style="height:230px;"><canvas id="btPeriod" role="img" aria-label="Resultaat per periode"></canvas></div>
+       </div>
+     </div>
+     <div class="panel" id="btBreakPanel"></div>
+     <div class="grid-2">
+       <div class="panel" id="btMcPanel"></div>
+       <div class="panel" id="btSimPanel"></div>
+     </div>
+     <div class="panel" id="btTradesPanel"></div>`;
+
+  btInsightsInto($('#btInsights'), s, S, MC);
+  btDrawEquity(s, S);
+  btDrawHist(s, S);
+  btDrawPeriod(s, S);
+  btRenderBreak();
+  btRenderMc(s, S, MC);
+  btRenderSim(s, S);
+  btRenderTrades();
+}
+function btTradeLabel(t){
+  if(!t) return '';
+  const bits = [t.date ? fmtDay(t.date) : ('trade #' + t.seq), t.symbol].filter(Boolean);
+  return escHtml(bits.join(' · '));
+}
+
+/* ---------- charts ---------- */
+const BT_GRID = 'rgba(255,255,255,0.04)', BT_TICK = '#8A93A6';
+function btDrawEquity(s, S){
+  const U = s.unit, el = document.getElementById('btEq'), dd = document.getElementById('btDD');
+  if(typeof Chart==='undefined' || !el) return;
+  const many = S.n > 1500;
+  const desc = $('#btEqDesc');
+  let pts, yFmt, tipFmt, color = '#2FD6A7', fill = true;
+  if(btEqMode==='sim' && U==='R'){
+    const sim = btSimulate(S.vals, s.startBalance, s.riskPct, btSimCompound);
+    pts = sim.curve.map((v,i)=>({ x:i, y:Math.round(v*100)/100 }));
+    yFmt = v=>btFmtAxis(v,'USD'); tipFmt = v=>btFmt(v,'USD');
+    color = '#8B7CF6'; fill = false;
+    if(desc) desc.textContent = `Wat je account zou doen met ${fmtNumTrim(s.riskPct)}% risico per trade vanaf ${btFmt(s.startBalance,'USD')} (${btSimCompound?'samengesteld':'vast bedrag'}).`;
+  } else {
+    pts = [{ x:0, y:0 }].concat(S.eq.map((v,i)=>({ x:i+1, y:Math.round(v*1e4)/1e4 })));
+    yFmt = v=>btFmtAxis(v,U); tipFmt = v=>btFmt(v,U,true);
+    if(desc) desc.textContent = 'Je opgetelde resultaat, trade na trade. Groen boven nul, rood eronder.';
+  }
+  const base = btEqMode==='sim' && U==='R' ? s.startBalance : 0;
+  charts.btEq = new Chart(el, {
+    type:'line',
+    data:{ datasets:[{ label:'Equity', data:pts, parsing:false, borderColor:color, borderWidth:2, tension:0, pointRadius:0, pointHoverRadius:4,
+      fill: fill ? { target:'origin', above:'rgba(47,214,167,0.13)', below:'rgba(242,85,92,0.13)' } : { target:{ value:base }, above:'rgba(139,124,246,0.12)', below:'rgba(242,85,92,0.13)' },
+      segment: fill ? { borderColor:c=> (c.p0.parsed.y + c.p1.parsed.y)/2 >= 0 ? '#2FD6A7' : '#F2555C' } : undefined }] },
+    options:{ animation:false, responsive:true, maintainAspectRatio:false, parsing:false, normalized:true,
+      interaction:{ mode:'nearest', axis:'x', intersect:false },
+      plugins:{ legend:{ display:false },
+        decimation: many ? { enabled:true, algorithm:'lttb', samples:600 } : { enabled:false },
+        tooltip:{ callbacks:{
+          title:items=>{ const i = items[0].parsed.x; const t = i>0 ? S.list[i-1] : null; return i===0 ? 'Start' : `Trade #${i}` + (t && t.date ? ' · ' + fmtDay(t.date) : ''); },
+          label:c=> (btEqMode==='sim' && U==='R' ? 'Saldo: ' : 'Totaal: ') + tipFmt(c.parsed.y) } } },
+      scales:{
+        x:{ type:'linear', grid:{ display:false }, ticks:{ color:'#5B6480', font:{ size:10 }, maxTicksLimit:8, precision:0 }, min:0, max:S.n },
+        y:{ suggestedMin:base, suggestedMax:base, grace:'6%',
+            grid:{ color:c=> c.tick && c.tick.value===base ? '#3A4258' : BT_GRID, lineWidth:c=> c.tick && c.tick.value===base ? 1.5 : 1 },
+            ticks:{ color:BT_TICK, font:{ size:10 }, callback:yFmt } } } },
+  });
+  if(dd){
+    const dpts = [{ x:0, y:0 }].concat(S.dd.map((v,i)=>({ x:i+1, y:Math.round(v*1e4)/1e4 })));
+    charts.btDD = new Chart(dd, {
+      type:'line',
+      data:{ datasets:[{ data:dpts, parsing:false, borderColor:'#F2555C', borderWidth:1.5, pointRadius:0, tension:0, fill:{ target:'origin', above:'rgba(242,85,92,0.18)', below:'rgba(242,85,92,0.18)' } }] },
+      options:{ animation:false, responsive:true, maintainAspectRatio:false, parsing:false, normalized:true,
+        interaction:{ mode:'nearest', axis:'x', intersect:false },
+        plugins:{ legend:{ display:false }, decimation: many ? { enabled:true, algorithm:'lttb', samples:600 } : { enabled:false },
+          tooltip:{ callbacks:{ title:items=>'Trade #'+items[0].parsed.x, label:c=>'Onder piek: ' + btFmt(c.parsed.y, U) } } },
+        scales:{ x:{ type:'linear', display:false, min:0, max:S.n }, y:{ suggestedMax:0, grace:'8%', grid:{ color:BT_GRID }, ticks:{ color:BT_TICK, font:{ size:10 }, maxTicksLimit:4, callback:v=>btFmtAxis(v,U) } } } },
+    });
+  }
+}
+function fmtNumTrim(v){ return String(Math.round(v*100)/100); }
+function btDrawHist(s, S){
+  const el = document.getElementById('btHist'); if(typeof Chart==='undefined' || !el || !S.bins.length) return;
+  const U = s.unit;
+  const col = c=> c==='win' ? '#2FD6A7' : c==='loss' ? '#F2555C' : '#E0B84B';
+  charts.btHist = new Chart(el, {
+    type:'bar',
+    data:{ labels:S.bins.map(b=>btNum((b.lo+b.hi)/2, S.binStep<1?2:1)),
+      datasets:[{ data:S.bins.map(b=>b.count), backgroundColor:S.bins.map(b=>col(b.cls)), borderRadius:3, barPercentage:0.92, categoryPercentage:1 }] },
+    options:{ animation:false, responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{
+        title:items=>{ const b = S.bins[items[0].dataIndex]; return `${btFmt(b.lo,U)} tot ${btFmt(b.hi,U)}`; },
+        label:c=>`${c.parsed.y} trade${c.parsed.y===1?'':'s'}` } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:'#5B6480', font:{ size:10 }, maxTicksLimit:10, maxRotation:0 } },
+               y:{ grid:{ color:BT_GRID }, ticks:{ color:BT_TICK, font:{ size:10 }, precision:0 } } } },
+  });
+}
+function btDrawPeriod(s, S){
+  const el = document.getElementById('btPeriod'); if(typeof Chart==='undefined' || !el) return;
+  const U = s.unit;
+  let labels, vals, title, desc;
+  if(S.months.length >= 2){
+    const m = S.months.slice(-24);
+    labels = m.map(x=>fmtMonthKey(x.key)); vals = m.map(x=>Math.round(x.net*1e4)/1e4);
+    title = 'Per maand'; desc = 'Je nettoresultaat per kalendermaand.';
+  } else {
+    const size = S.n > 400 ? 50 : 20; labels = []; vals = [];
+    for(let i=0;i<S.n;i+=size){ const part = S.vals.slice(i, i+size); labels.push(`${i+1}–${Math.min(S.n,i+size)}`); vals.push(Math.round(part.reduce((a,b)=>a+b,0)*1e4)/1e4); }
+    title = `Per blok van ${size} trades`; desc = 'Je resultaat per reeks trades — handig als je data geen datums heeft.';
+  }
+  $('#btPeriodTitle').textContent = title; $('#btPeriodDesc').textContent = desc;
+  charts.btPeriod = new Chart(el, {
+    type:'bar',
+    data:{ labels, datasets:[{ data:vals, backgroundColor:vals.map(v=>v>=0?'#2FD6A7':'#F2555C'), borderRadius:4, barPercentage:0.7, categoryPercentage:0.85 }] },
+    options:{ animation:false, responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c=>btFmt(c.parsed.y,U,true) } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:'#5B6480', font:{ size:10 }, maxTicksLimit:12, maxRotation:0 } },
+               y:{ grid:{ color:c=> c.tick && c.tick.value===0 ? '#3A4258' : BT_GRID }, ticks:{ color:BT_TICK, font:{ size:10 }, callback:v=>btFmtAxis(v,U) } } } },
+  });
+}
+
+/* ---------- breakdown ---------- */
+function btBreakTabs(S){
+  const t = [];
+  if(S.byDir.length) t.push(['dir','Richting']);
+  if(S.byWeekday.length>1) t.push(['weekday','Weekdag']);
+  if(S.byHour.length) t.push(['hour','Uur']);
+  if(S.bySymbol.length) t.push(['symbol','Symbool']);
+  if(S.byTag.length) t.push(['tag','Setup / tag']);
+  if(S.months.length>1) t.push(['month','Maand']);
+  return t;
+}
+function btRenderBreak(){
+  const el = $('#btBreakPanel'); if(!el || !btCurrent) return;
+  const { s, S } = btCurrent, U = s.unit;
+  const tabs = btBreakTabs(S);
+  if(!tabs.length){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  if(!tabs.some(t=>t[0]===btBreakTab)) btBreakTab = tabs[0][0];
+  const rows0 = btBreakTab==='dir' ? S.byDir : btBreakTab==='weekday' ? S.byWeekday : btBreakTab==='hour' ? S.byHour : btBreakTab==='symbol' ? S.bySymbol : btBreakTab==='tag' ? S.byTag : S.months;
+  const rows = rows0.slice(0, btBreakTab==='month' ? 36 : 40);
+  const label = r=> btBreakTab==='dir' ? (r.key==='long'?'Long':'Short') : btBreakTab==='weekday' ? BT_DAYS[r.key] : btBreakTab==='hour' ? `${btPad(r.key)}:00 – ${btPad(r.key)}:59` : btBreakTab==='month' ? fmtMonthKey(r.key) : escHtml(r.key);
+  const maxAbs = Math.max(...rows.map(r=>Math.abs(r.net)), 1e-9);
+  const minN = Math.max(5, Math.round(S.n*0.04));
+  const eligible = rows.filter(r=>r.n>=minN);
+  const best = eligible.length>1 ? eligible.reduce((a,b)=>b.net>a.net?b:a) : null;
+  const worst = eligible.length>1 ? eligible.reduce((a,b)=>b.net<a.net?b:a) : null;
+  el.innerHTML = `<div class="bt-panel-head"><div><h2>Waar verdien (en verlies) je geld?</h2><div class="desc">Splits je resultaten uit. Breakeven-trades tellen niet mee in winrate en profit factor.</div></div>
+      <div class="chips-row">${tabs.map(t=>`<div class="chip${btBreakTab===t[0]?' selected':''}" onclick="btSetBreak('${t[0]}')">${t[1]}</div>`).join('')}</div></div>
+    <div class="vault-scroll"><table class="bt-bartable"><thead><tr><th></th><th>Trades</th><th>Winrate</th><th>PF</th><th style="min-width:150px;">Netto</th><th>Gem.</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${label(r)}${best===r?' <span class="tag win">beste</span>':worst===r&&r.net<0?' <span class="tag loss">zwakste</span>':''}</td>
+      <td>${r.n}</td><td>${r.wr===null?'—':r.wr.toFixed(0)+'%'}</td><td>${btPf(r.pf)}</td>
+      <td class="barcell"><div class="fill" style="width:${(Math.abs(r.net)/maxAbs*100).toFixed(1)}%; background:${r.net>=0?'var(--pos-glow)':'var(--neg-glow)'};"></div><span class="${r.net>0?'pos-txt':r.net<0?'neg-txt':''}">${btFmt(r.net,U,true)}</span></td>
+      <td class="${r.avg>0?'pos-txt':r.avg<0?'neg-txt':''}">${btFmt(r.avg,U,true)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+function btSetBreak(t){ btBreakTab = t; btRenderBreak(); }
+function btSetEq(m){
+  btEqMode = m; if(!btCurrent) return;
+  document.querySelectorAll('#btEqChips .chip').forEach(c=>c.classList.toggle('selected', c.dataset.m===m));
+  btDestroyChartsSome(['btEq','btDD']); btDrawEquity(btCurrent.s, btCurrent.S);
+}
+function btDestroyChartsSome(ids){ ids.forEach(id=>{ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }); }
+
+/* ---------- Monte Carlo + simulator ---------- */
+function btGetMc(s, S){
+  const key = [s.id, S.n, s.be, s.beZero, S.net.toFixed(6)].join('|');
+  if(btMcCache.key !== key){ btMcCache = { key, mc: btMonteCarlo(S.vals) }; }
+  return btMcCache.mc;
+}
+function btRenderMc(s, S, MC){
+  const el = $('#btMcPanel'); if(!el) return;
+  const U = s.unit;
+  if(!MC){ el.innerHTML = `<h2>Monte Carlo</h2><div class="desc">Met minstens 10 trades trekt het systeem duizend keer opnieuw uit jouw resultaten om te zien hoe groot het geluk-en-pech-effect is.</div><div class="bt-note">Nog te weinig trades (${S.n}).</div>`; return; }
+  el.innerHTML = `<h2>Monte Carlo <span style="font-weight:400; color:var(--text-faint); font-size:12px;">(${MC.sims} simulaties)</span></h2>
+    <div class="desc">Het systeem trekt ${MC.n} trades, ${MC.sims} keer, willekeurig uit je eigen resultaten. Zo zie je hoe je backtest kon lopen met meer of minder geluk.</div>
+    <div style="height:200px;"><canvas id="btMC" role="img" aria-label="Monte Carlo waaier van mogelijke equity-curves"></canvas></div>
+    <div class="bt-mc">
+      <div><div class="l">Kans op winst</div><div class="v ${MC.pProfit>=70?'pos-txt':MC.pProfit<50?'neg-txt':''}">${MC.pProfit.toFixed(0)}%</div><div class="s">van de ${MC.sims} runs eindigt positief</div></div>
+      <div><div class="l">Typisch eindresultaat</div><div class="v">${btFmt(MC.finalP50,U,true)}</div><div class="s">bandbreedte ${btFmt(MC.finalP5,U,true)} tot ${btFmt(MC.finalP95,U,true)}</div></div>
+      <div><div class="l">Typische max drawdown</div><div class="v">${btFmt(-MC.ddP50,U)}</div><div class="s">de helft van de runs blijft hieronder</div></div>
+      <div><div class="l">Pech-scenario (95%)</div><div class="v neg-txt">${btFmt(-MC.ddP95,U)}</div><div class="s">in 1 op 20 runs is de drawdown groter</div></div>
+    </div>`;
+  const cv = document.getElementById('btMC'); if(typeof Chart==='undefined' || !cv) return;
+  const F = MC.fan;
+  const pt = arr=>[{ x:0, y:0 }].concat(arr.map((y,i)=>({ x:F.x[i], y:Math.round(y*1e3)/1e3 })));
+  charts.btMC = new Chart(cv, {
+    type:'line',
+    data:{ datasets:[
+      { label:'Pech (5%)', data:pt(F.p5), parsing:false, borderColor:'rgba(242,85,92,0.7)', borderWidth:1.2, pointRadius:0, tension:0.2, fill:false },
+      { label:'Mediaan', data:pt(F.p50), parsing:false, borderColor:'#8B7CF6', borderWidth:2, pointRadius:0, tension:0.2, fill:false },
+      { label:'Geluk (95%)', data:pt(F.p95), parsing:false, borderColor:'rgba(47,214,167,0.7)', borderWidth:1.2, pointRadius:0, tension:0.2, fill:'-2', backgroundColor:'rgba(139,124,246,0.10)' },
+    ]},
+    options:{ animation:false, responsive:true, maintainAspectRatio:false, parsing:false, interaction:{ mode:'nearest', axis:'x', intersect:false },
+      plugins:{ legend:{ display:true, labels:{ color:BT_TICK, font:{ size:10 }, boxWidth:10, boxHeight:10, usePointStyle:true } },
+        tooltip:{ callbacks:{ title:i=>'Na '+i[0].parsed.x+' trades', label:c=>c.dataset.label+': '+btFmt(c.parsed.y,U,true) } } },
+      scales:{ x:{ type:'linear', min:0, max:MC.n, grid:{ display:false }, ticks:{ color:'#5B6480', font:{ size:10 }, maxTicksLimit:7 } },
+               y:{ suggestedMin:0, suggestedMax:0, grace:'6%', grid:{ color:c=> c.tick && c.tick.value===0 ? '#3A4258' : BT_GRID }, ticks:{ color:BT_TICK, font:{ size:10 }, callback:v=>btFmtAxis(v,U) } } } },
+  });
+}
+function btRenderSim(s, S){
+  const el = $('#btSimPanel'); if(!el) return;
+  if(s.unit!=='R'){
+    el.innerHTML = `<h2>Wat-als simulator</h2><div class="desc">Rekent je backtest om naar een account met een bepaald risico per trade.</div>
+      <div class="bt-note">Dit werkt voor sessies in <b>R</b> (risico-eenheden). Deze sessie staat in ${BT_UNIT_LONG[s.unit]} — zet de eenheid op R via Instellingen als je resultaten in R zijn.</div>`;
+    return;
+  }
+  el.innerHTML = `<h2>Wat-als simulator</h2>
+    <div class="desc">Wat als je deze strategie had gehandeld met een vast risico per trade? De simulator rekent je R-resultaten om naar dollars.</div>
+    <div class="bt-sim-in">
+      <div class="field"><label>Startkapitaal ($)</label><input type="number" id="btSimStart" min="1" step="any" value="${s.startBalance}" oninput="btSimInput()"></div>
+      <div class="field"><label>Risico per trade (%)</label><input type="number" id="btSimRisk" min="0.01" step="any" value="${s.riskPct}" oninput="btSimInput()"></div>
+    </div>
+    <div class="chips-row" style="margin-bottom:14px;"><div class="chip${btSimCompound?' selected':''}" onclick="btSetCompound(true)">Samengesteld</div><div class="chip${!btSimCompound?' selected':''}" onclick="btSetCompound(false)">Vast bedrag</div></div>
+    <div class="bt-mc" id="btSimOut"></div>
+    <div class="bt-note">Samengesteld: je risico is elke trade een % van je huidige saldo. Vast bedrag: altijd een % van je startkapitaal.</div>`;
+  btSimOut(s, S, false);
+}
+function btSimOut(s, S, redraw){
+  const out = $('#btSimOut'); if(!out) return;
+  const sim = btSimulate(S.vals, s.startBalance, s.riskPct, btSimCompound);
+  const risk$ = s.startBalance * s.riskPct/100;
+  out.innerHTML = `
+    <div><div class="l">Eindsaldo</div><div class="v ${sim.final>=s.startBalance?'pos-txt':'neg-txt'}">${btFmt(sim.final,'USD')}</div><div class="s">${sim.ruin?'⚠ account geblazen':'vanaf '+btFmt(s.startBalance,'USD')}</div></div>
+    <div><div class="l">Rendement</div><div class="v ${sim.ret>=0?'pos-txt':'neg-txt'}">${sim.ret>=0?'+':''}${sim.ret.toLocaleString('en-US',{maximumFractionDigits:1})}%</div><div class="s">${S.n} trades</div></div>
+    <div><div class="l">Max drawdown</div><div class="v neg-txt">-${sim.maxDDpct.toFixed(1)}%</div><div class="s">van piek naar dal</div></div>
+    <div><div class="l">Eerste trade riskeert</div><div class="v">${btFmt(risk$,'USD')}</div><div class="s">1R = ${btFmt(risk$,'USD')}</div></div>`;
+  if(btEqMode==='sim' && redraw){ btDestroyChartsSome(['btEq','btDD']); btDrawEquity(s, S); }
+}
+function btSimInput(){
+  const s = btSession(btSelected); if(!s || !btCurrent) return;
+  const st = parseFloat($('#btSimStart').value), rk = parseFloat($('#btSimRisk').value);
+  if(isFinite(st) && st>0) s.startBalance = st;
+  if(isFinite(rk) && rk>0) s.riskPct = rk;
+  btSimOut(s, btCurrent.S, true);
+  btDebounce('simSave', ()=>btPersistSession(s, { start_balance:s.startBalance, risk_pct:s.riskPct }), 700);
+}
+function btSetCompound(on){ btSimCompound = !!on; if(btCurrent){ btRenderSim(btCurrent.s, btCurrent.S); if(btEqMode==='sim'){ btDestroyChartsSome(['btEq','btDD']); btDrawEquity(btCurrent.s, btCurrent.S); } } }
+
+/* ---------- insights ---------- */
+function btInsightsInto(ul, s, S, MC){
+  if(!ul) return;
+  const U = s.unit, out = []; const add = (tone, html)=>out.push({ tone, html });
+  if(S.n<30) add('be', `Slechts <b>${S.n} trades</b> — te weinig voor harde conclusies. Mik op minstens 100.`);
+  else if(S.n<100) add('be', `<b>${S.n} trades</b> is een redelijk begin, maar nog geen bewijs. Vanaf 100+ trades worden de cijfers betrouwbaar.`);
+  if(S.expectancy!==null) add(S.expectancy>0?'pos':S.expectancy<0?'neg':'be',
+    S.expectancy>0 ? `Positieve edge: gemiddeld levert elke trade <b>${btFmt(S.expectancy,U,true)}</b> op, samen <b>${btFmt(S.net,U,true)}</b> over ${S.n} trades.`
+                   : S.expectancy<0 ? `Negatieve verwachting: gemiddeld verlies je <b>${btFmt(-S.expectancy,U)}</b> per trade. Zo, zonder aanpassing, is de strategie verliesgevend.`
+                   : `Verwachting is precies nul — geen edge, geen verlies.`);
+  if(S.needWinrate!==null && S.winrate!==null){
+    const diff = S.winrate - S.needWinrate;
+    add(diff>=0?'pos':'neg', `Bij je gemiddelde R:R van <b>${S.payoff.toFixed(2)}:1</b> heb je <b>${S.needWinrate.toFixed(0)}%</b> winrate nodig om break-even te zijn. Je haalt <b>${S.winrate.toFixed(0)}%</b> — ${diff>=0?'een marge van':'een tekort van'} ${Math.abs(diff).toFixed(1)} procentpunt.`);
+  }
+  if(S.b>0){
+    const w0 = btGroupStats(S.list, 0, false).wr;
+    add('be', `<b>${S.b} trades (${(S.b/S.n*100).toFixed(0)}%)</b> zijn breakeven (binnen ±${btFmt(s.be,U)}) en tellen niet mee in je winrate.${w0!==null && s.be>0 ? ` Zonder die regel zou je winrate <b>${w0.toFixed(0)}%</b> zijn.` : ''}`);
+  }
+  const pick = (rows, nameFn, what)=>{
+    const minN = Math.max(8, Math.round(S.n*0.06));
+    const el = rows.filter(r=>r.n>=minN); if(el.length<2) return;
+    const b = el.reduce((x,y)=>y.net>x.net?y:x), w = el.reduce((x,y)=>y.net<x.net?y:x);
+    if(b.net>0) add('pos', `Beste ${what}: <b>${nameFn(b)}</b> — ${btFmt(b.net,U,true)} over ${b.n} trades${b.wr!==null?` (${b.wr.toFixed(0)}% winrate)`:''}.`);
+    if(w.net<0 && w!==b) add('neg', `Zwakste ${what}: <b>${nameFn(w)}</b> — ${btFmt(w.net,U,true)} over ${w.n} trades. Overweeg die te mijden.`);
+  };
+  pick(S.byWeekday, r=>BT_DAYS[r.key], 'dag');
+  pick(S.byHour, r=>`${btPad(r.key)}:00`, 'uur');
+  pick(S.byTag, r=>escHtml(r.key), 'setup');
+  pick(S.bySymbol, r=>escHtml(r.key), 'symbool');
+  if(S.byDir.length===2){
+    const l = S.byDir.find(r=>r.key==='long'), sh = S.byDir.find(r=>r.key==='short');
+    if(l && sh && l.n>=8 && sh.n>=8 && (l.net>0) !== (sh.net>0)) add('acc', `Long en short gedragen zich verschillend: <b>long ${btFmt(l.net,U,true)}</b> tegenover <b>short ${btFmt(sh.net,U,true)}</b>.`);
+  }
+  if(S.months.length>=3) add('acc', `<b>${S.profitMonths} van ${S.months.length}</b> maanden waren winstgevend (${(S.profitMonths/S.months.length*100).toFixed(0)}%).`);
+  if(S.maxLossStreak>=3){
+    const mcTxt = MC ? ` In 1 op 20 simulaties kreeg je een drawdown van <b>${btFmt(-MC.ddP95,U)}</b> of erger.` : '';
+    add('neg', `Langste verliesreeks: <b>${S.maxLossStreak}</b> trades op rij. Reken erop dat dit weer gebeurt.${mcTxt}`);
+  }
+  if(S.maxDD>0) add('acc', `Max drawdown <b>${btFmt(-S.maxDD,U)}</b>, en je zat maximaal <b>${S.longestDD}</b> trades onder je piek.${S.curDD>0?` Nu sta je ${btFmt(-S.curDD,U)} onder je hoogtepunt.`:' Je staat nu op je hoogtepunt.'}`);
+  if(U==='R' && S.n>=10 && S.net!==0){
+    const sim = btSimulate(S.vals, s.startBalance, s.riskPct, btSimCompound);
+    add(sim.ret>=0?'pos':'neg', `Met <b>${fmtNumTrim(s.riskPct)}%</b> risico per trade op ${btFmt(s.startBalance,'USD')} was je eindsaldo <b>${btFmt(sim.final,'USD')}</b> geweest (max drawdown ${sim.maxDDpct.toFixed(0)}%).`);
+  }
+  ul.innerHTML = out.slice(0,9).map(o=>`<li><span class="dot ${o.tone}"></span><span>${o.html}</span></li>`).join('');
+}
+
+/* ---------- trades table ---------- */
+function btRenderTrades(){
+  const el = $('#btTradesPanel'); if(!el || !btCurrent) return;
+  const { s, S } = btCurrent, U = s.unit;
+  const rows = [];
+  for(let i=S.n-1;i>=0;i--){ const c = S.classes[i]; if(btTradeFilter==='all' || btTradeFilter===c) rows.push({ t:S.list[i], c, i }); }
+  const shown = rows.slice(0, btTradeLimit);
+  const chip = (k,l,tone)=>`<div class="chip${btTradeFilter===k?' selected':''}"${tone?` data-tone="${tone}"`:''} onclick="btSetTradeFilter('${k}')">${l}</div>`;
+  el.innerHTML = `<div class="bt-panel-head"><div><h2>Alle trades</h2><div class="desc">Klik op een regel om te bewerken. Nieuwste bovenaan.</div></div>
+      <div class="chips-row">${chip('all','Alle')}${chip('win',`Winst (${S.w})`,'pos')}${chip('loss',`Verlies (${S.l})`,'neg')}${chip('be',`BE (${S.b})`,'be')}</div></div>
+    <div class="vault-scroll"><table><thead><tr><th>#</th><th>Datum</th><th>Symbool</th><th>Richting</th><th>Resultaat</th><th>Uitkomst</th><th>Tag</th><th>Notitie</th></tr></thead><tbody>
+    ${shown.map(({t,c,i})=>`<tr style="cursor:pointer;" onclick="btOpenTrade('${t.id}')">
+      <td style="color:var(--text-faint);">${i+1}</td>
+      <td>${t.date ? fmtDay(t.date) + (t.time ? ' <span style="color:var(--text-faint);">'+t.time+'</span>' : '') : '—'}</td>
+      <td>${escHtml(t.symbol)||'—'}</td>
+      <td>${t.direction==='long'?'Long':t.direction==='short'?'Short':'—'}</td>
+      <td class="${t.result>0?'pos-txt':t.result<0?'neg-txt':''}">${btFmt(t.result,U,true)}</td>
+      <td><span class="tag ${c}">${c==='win'?'WIN':c==='loss'?'LOSS':'BE'}</span></td>
+      <td>${t.tag?`<span class="tag">${escHtml(t.tag)}</span>`:''}</td>
+      <td style="font-family:'Inter',sans-serif; color:var(--text-dim); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escHtml(t.note)}</td></tr>`).join('')}
+    ${rows.length>shown.length ? `<tr><td colspan="8" style="text-align:center; padding:14px;"><span class="btn secondary small" onclick="btTradesMore()">Toon meer (${shown.length} van ${rows.length})</span></td></tr>` : ''}
+    ${rows.length===0 ? `<tr><td colspan="8" style="text-align:center; color:var(--text-faint); padding:22px;">Geen trades in dit filter.</td></tr>` : ''}
+    </tbody></table></div>`;
+}
+function btSetTradeFilter(f){ btTradeFilter = f; btTradeLimit = 50; btRenderTrades(); }
+function btTradesMore(){ btTradeLimit += 100; btRenderTrades(); }
+
+/* ---------- overview (all sessions side by side) ---------- */
+function btRenderOverview(el){
+  const sessions = btSortedSessions();
+  btCurrent = null;
+  if(!sessions.length){
+    el.innerHTML = `<div class="vault-empty"><div class="big">Hier komt je backtest-bibliotheek</div>
+      <p>Plak al je backtest-trades in de <b>Data drop</b> hierboven. Staan er datums bij, dan maakt het systeem vanzelf een sessie per jaar aan en rekent alle KPI's uit. Je kan ook zelf een sessie aanmaken.</p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button type="button" class="btn" onclick="btOpenDrop(true)">Plak je data</button>
+        <button type="button" class="btn secondary" onclick="btOpenSession()">+ Lege sessie</button>
+      </div></div>`;
+    return;
+  }
+  const rows = sessions.map((s,i)=>({ s, S:btStats(s), color:BT_COLORS[i%BT_COLORS.length] }));
+  const withData = rows.filter(r=>r.S.n>0);
+  const units = [...new Set(withData.map(r=>r.s.unit))];
+  const sameUnit = units.length<=1;
+  const U = units[0] || 'R';
+  let hero = '';
+  if(withData.length && sameUnit){
+    const A = withData.reduce((a,r)=>{ a.n+=r.S.n; a.w+=r.S.w; a.l+=r.S.l; a.b+=r.S.b; a.gp+=r.S.grossProfit; a.gl+=r.S.grossLoss; a.net+=r.S.net; return a; }, { n:0,w:0,l:0,b:0,gp:0,gl:0,net:0 });
+    const wr = A.w+A.l ? A.w/(A.w+A.l)*100 : null, pf = A.gl>0 ? A.gp/A.gl : (A.gp>0 ? Infinity : null);
+    const bestRow = withData.reduce((a,r)=>r.S.net>a.S.net?r:a);
+    hero = `<div class="vault-hero ${A.net>0?'pos':A.net<0?'neg':''}">
+      <div><div class="vault-eyebrow">Alle sessies samen</div>
+        <div class="vault-net ${A.net>0?'pos':A.net<0?'neg':''}">${btFmt(A.net,U,true)}</div>
+        <div class="vault-sub"><span><b>${withData.length}</b> sessie${withData.length===1?'':'s'}</span><span><b>${A.n}</b> trades</span><span>Beste: <b>${escHtml(bestRow.s.name)}</b> (${btFmt(bestRow.S.net,U,true)})</span></div></div>
+      <div class="bt-mini" style="margin:0; grid-template-columns:repeat(2,1fr);">
+        <div><div class="l">Winrate</div><div class="v">${wr===null?'—':wr.toFixed(1)+'%'}</div></div>
+        <div><div class="l">Profit factor</div><div class="v">${btPf(pf)}</div></div>
+        <div><div class="l">Verwachting</div><div class="v ${A.net>0?'pos-txt':A.net<0?'neg-txt':''}">${btFmt(A.n?A.net/A.n:null,U,true)}</div></div>
+        <div><div class="l">Winstgevende sessies</div><div class="v">${withData.filter(r=>r.S.net>0).length}/${withData.length}</div></div>
+      </div></div>`;
+  } else if(withData.length){
+    hero = `<div class="be-warn" style="margin-bottom:18px;">Je sessies gebruiken verschillende eenheden (${units.map(u=>BT_UNIT_LONG[u]).join(', ')}), dus ze kunnen niet bij elkaar opgeteld worden. Hieronder zie je ze wel naast elkaar.</div>`;
+  }
+  el.innerHTML = hero + `<div class="section-head"><h3>Sessies vergeleken</h3><div class="rule"></div></div>
+    <div class="panel"><div class="vault-scroll"><table class="bt-session-cmp bt-bartable"><thead><tr><th>Sessie</th><th>Trades</th><th>Winrate</th><th>PF</th><th>Verwachting</th><th>Netto</th><th>Max DD</th><th>BE</th></tr></thead><tbody>
+    ${rows.map(({s,S,color})=>`<tr onclick="btSelect('${s.id}')">
+      <td><span class="bt-dot" style="background:${color};"></span>${escHtml(s.name)}</td>
+      <td>${S.n}</td><td>${S.winrate===null?'—':S.winrate.toFixed(1)+'%'}</td><td>${btPf(S.pf)}</td>
+      <td class="${S.expectancy>0?'pos-txt':S.expectancy<0?'neg-txt':''}">${S.n?btFmt(S.expectancy,s.unit,true):'—'}</td>
+      <td class="${S.net>0?'pos-txt':S.net<0?'neg-txt':''}">${S.n?btFmt(S.net,s.unit,true):'—'}</td>
+      <td>${S.n&&S.maxDD>0?btFmt(-S.maxDD,s.unit):'—'}</td><td>${S.b}</td></tr>`).join('')}
+    </tbody></table></div></div>` +
+    (withData.length ? `<div class="grid-2 wide-left"><div class="panel"><h2>Equity per sessie</h2><div class="desc">Alle sessies op dezelfde schaal, trade na trade. Zo zie je welk jaar of welke run het sterkst was.</div><div style="height:280px;"><canvas id="btCmpEq" role="img" aria-label="Equity-curves per sessie"></canvas></div></div>
+      <div class="panel"><h2>Netto per sessie</h2><div class="desc">Wie won, wie verloor.</div><div style="height:280px;"><canvas id="btCmpNet" role="img" aria-label="Netto resultaat per sessie"></canvas></div></div></div>` : '');
+  if(typeof Chart==='undefined' || !withData.length) return;
+  const plotRows = withData.filter(r=>r.s.unit===U);
+  charts.btCmpEq = new Chart(document.getElementById('btCmpEq'), {
+    type:'line',
+    data:{ datasets: plotRows.map(r=>({ label:r.s.name, data:[{x:0,y:0}].concat(r.S.eq.map((v,i)=>({ x:i+1, y:Math.round(v*1e3)/1e3 }))), parsing:false, borderColor:r.color, borderWidth:2, pointRadius:0, tension:0 })) },
+    options:{ animation:false, responsive:true, maintainAspectRatio:false, parsing:false, normalized:true, interaction:{ mode:'nearest', axis:'x', intersect:false },
+      plugins:{ legend:{ display:plotRows.length>1, labels:{ color:BT_TICK, font:{ size:10 }, boxWidth:10, boxHeight:10, usePointStyle:true } },
+        decimation:{ enabled:true, algorithm:'lttb', samples:500 },
+        tooltip:{ callbacks:{ title:i=>'Trade #'+i[0].parsed.x, label:c=>c.dataset.label+': '+btFmt(c.parsed.y,U,true) } } },
+      scales:{ x:{ type:'linear', min:0, grid:{ display:false }, ticks:{ color:'#5B6480', font:{ size:10 }, maxTicksLimit:8, precision:0 } },
+               y:{ suggestedMin:0, suggestedMax:0, grace:'6%', grid:{ color:c=> c.tick && c.tick.value===0 ? '#3A4258' : BT_GRID }, ticks:{ color:BT_TICK, font:{ size:10 }, callback:v=>btFmtAxis(v,U) } } } },
+  });
+  charts.btCmpNet = new Chart(document.getElementById('btCmpNet'), {
+    type:'bar',
+    data:{ labels:plotRows.map(r=>r.s.name), datasets:[{ data:plotRows.map(r=>Math.round(r.S.net*1e3)/1e3), backgroundColor:plotRows.map(r=>r.S.net>=0?'#2FD6A7':'#F2555C'), borderRadius:5, barPercentage:0.6 }] },
+    options:{ animation:false, responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c=>btFmt(c.parsed.y,U,true) } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:'#5B6480', font:{ size:10 }, maxRotation:0 } }, y:{ grid:{ color:c=> c.tick && c.tick.value===0 ? '#3A4258' : BT_GRID }, ticks:{ color:BT_TICK, font:{ size:10 }, callback:v=>btFmtAxis(v,U) } } } },
+  });
+}
+
+/* ============================================================
+   DATA DROP
+   ============================================================ */
+function btApplyDropOpen(){
+  const el = $('#btDrop'); if(!el) return;
+  let open = btDropOpen;
+  if(open===null){
+    const empty = btSelected==='overview' ? btSessions.length===0 : btTradesOf(btSelected).length===0;
+    open = empty || !!$('#btText').value.trim();
+  }
+  el.classList.toggle('open', !!open);
+}
+function btToggleDrop(){ btDropOpen = !$('#btDrop').classList.contains('open'); btApplyDropOpen(); }
+function btOpenDrop(on){
+  btDropOpen = !!on; btApplyDropOpen();
+  if(on){ const d = $('#btDrop'); if(d){ d.scrollIntoView({ behavior:'smooth', block:'start' }); setTimeout(()=>{ const t = $('#btText'); if(t) t.focus(); }, 350); } }
+}
+function btToggleHelp(){ $('#btHelp').classList.toggle('show'); }
+function btRenderTargetChips(){
+  const list = btSortedSessions();
+  if(btDrop.target!=='auto' && btDrop.target!=='new' && !btSession(btDrop.target)) btDrop.target = btSelected==='overview' ? 'auto' : (btSession(btSelected) ? btSelected : 'auto');
+  $('#btTargetChips').innerHTML =
+    `<div class="chip${btDrop.target==='auto'?' selected':''}" data-val="auto">Automatisch per jaar</div>` +
+    list.map(s=>`<div class="chip${btDrop.target===s.id?' selected':''}" data-val="${s.id}">${escHtml(s.name)}</div>`).join('') +
+    `<div class="chip${btDrop.target==='new'?' selected':''}" data-val="new">+ Nieuwe sessie</div>`;
+  $('#btNewWrap').style.display = btDrop.target==='new' ? '' : 'none';
+  $('#btModeWrap').style.display = btDrop.target==='new' ? 'none' : '';
+}
+function btTargetUnit(){ const s = btSession(btDrop.target); return s ? s.unit : 'R'; }
+function btAnalyze(){
+  const text = $('#btText').value;
+  if(!text.trim()){ btDrop.parsed = null; btRenderPreview(); return; }
+  const p = btParseDump(text, { unit:btTargetUnit(), dateFmt:btDrop.fmt, symbol:($('#btSym').value||'').trim() });
+  if($('#btReverse').checked) p.rows.reverse();
+  btDrop.parsed = p;
+  btRenderPreview();
+}
+/* where does every row go? */
+function btMakePlan(p){
+  const plan = { groups:[], errors:[], notes:[], dupTotal:0, rowTotal:0 };
+  if(!p || !p.rows.length) return plan;
+  const detected = p.detectedUnit, T = btDrop.target;
+  const sorted = btSortedSessions();
+  const mk = (label, s, rows, newName, year)=>({ label, session:s||null, newName, year, rows, unit:s ? s.unit : (detected||'R'), unitChange:false });
+  if(T==='auto'){
+    const byYear = new Map(), undated = [];
+    p.rows.forEach(r=>{ if(r.date){ const y = r.date.slice(0,4); if(!byYear.has(y)) byYear.set(y,[]); byYear.get(y).push(r); } else undated.push(r); });
+    [...byYear.keys()].sort().forEach(y=> plan.groups.push(mk(y, sorted.find(x=>x.year===+y)||null, byYear.get(y), `Backtest ${y}`, +y)));
+    if(undated.length){
+      const base = btSession(btSelected);
+      const s = base || sorted.find(x=>x.name==='Backtest (zonder datum)') || null;
+      plan.groups.push(mk('zonder datum', s, undated, 'Backtest (zonder datum)', null));
+      plan.notes.push(`${undated.length} trades hebben geen datum en gaan naar ${s ? '“'+escHtml(s.name)+'”' : 'een nieuwe sessie “Backtest (zonder datum)”'}.`);
+    }
+  } else if(T==='new'){
+    const years = Object.keys(p.years).sort((a,b)=>p.years[b]-p.years[a]);
+    const name = ($('#btNewName').value||'').trim() || (years.length===1 ? `Backtest ${years[0]}` : 'Backtest');
+    plan.groups.push(mk(name, null, p.rows, name, years.length===1 ? +years[0] : null));
+  } else {
+    const s = btSession(T);
+    if(s){
+      plan.groups.push(mk(s.name, s, p.rows, s.name, s.year));
+      const ys = Object.keys(p.years);
+      if(s.year && ys.some(y=>+y!==s.year)) plan.notes.push(`Let op: je data bevat datums buiten ${s.year} (${ys.join(', ')}). Kies “Automatisch per jaar” als je ze wilt verdelen.`);
+    }
+  }
+  // unit conflicts + duplicates
+  plan.groups.forEach(g=>{
+    plan.rowTotal += g.rows.length;
+    const s = g.session; if(!s) return;
+    const existing = btTradesOf(s.id);
+    if(detected && detected!==s.unit){
+      if(existing.length && !(btDrop.mode==='replace')) plan.errors.push(`“${escHtml(s.name)}” staat in ${BT_UNIT_LONG[s.unit]}, maar je data lijkt in ${BT_UNIT_LONG[detected]}. Maak een nieuwe sessie, of kies “Alles vervangen”.`);
+      else { g.unitChange = true; g.unit = detected; plan.notes.push(`De eenheid van “${escHtml(s.name)}” wordt omgezet naar ${BT_UNIT_LONG[detected]}.`); }
+    }
+    if(btDrop.mode==='append' && existing.length){
+      const cnt = new Map(); existing.forEach(t=>{ const k = btRowKey(t.date,t.time,t.symbol,t.direction,t.result); cnt.set(k,(cnt.get(k)||0)+1); });
+      g.dupFlags = g.rows.map(r=>{ const k = btRowKey(r.date,r.time,r.symbol,r.dir,r.result); const c = cnt.get(k)||0; if(c>0){ cnt.set(k,c-1); return true; } return false; });
+      g.dupes = g.dupFlags.filter(Boolean).length; plan.dupTotal += g.dupes;
+    }
+  });
+  return plan;
+}
+function btRowKey(date,time,symbol,dir,result){ return [date||'', time||'', String(symbol||'').toUpperCase(), dir||'', Number(result).toFixed(6)].join('|'); }
+
+function btRenderPreview(){
+  const box = $('#btPreview'), btn = $('#btImportBtn');
+  const p = btDrop.parsed;
+  if(!p){ box.innerHTML = ''; btn.disabled = true; btn.textContent = 'Importeren'; $('#btSkipWrap').style.display = 'none'; return; }
+  if(!p.rows.length){
+    box.innerHTML = `<div class="bt-prev"><div class="bt-err" style="margin:0;">Geen trades herkend in deze tekst. ${p.skipped.length ? `${p.skipped.length} regel${p.skipped.length===1?'':'s'} overgeslagen — open “Welke formaten snapt hij?” voor voorbeelden.` : ''}</div>${btSkippedHtml(p)}</div>`;
+    btn.disabled = true; btn.textContent = 'Importeren'; $('#btSkipWrap').style.display = 'none'; return;
+  }
+  const plan = btMakePlan(p);
+  const target = btSession(btDrop.target);
+  const U = (target && target.unit) || p.detectedUnit || 'R';
+  // dupes: suggest skipping when most of the data is already there
+  const skipWrap = $('#btSkipWrap');
+  skipWrap.style.display = plan.dupTotal>0 ? '' : 'none';
+  if(plan.dupTotal>0 && !btDrop.dupTouched) $('#btSkipDupes').checked = plan.dupTotal/plan.rowTotal >= 0.8;
+  const skipDupes = plan.dupTotal>0 && $('#btSkipDupes').checked;
+  const toImport = plan.rowTotal - (skipDupes ? plan.dupTotal : 0);
+  const stat = computeBacktest(p.rows.map((r,i)=>({ date:r.date, time:r.time, symbol:r.symbol, direction:r.dir, result:r.result, tag:r.tag, seq:i })), { be: target ? target.be : 0, beZero:false, unit:U });
+  const years = Object.keys(p.years).sort();
+  const chips = [
+    `<span class="tag win">✓ ${p.rows.length} trades herkend</span>`,
+    p.skipped.length ? `<span class="tag be click" onclick="btShowSkipped()">⚠ ${p.skipped.length} regel${p.skipped.length===1?'':'s'} overgeslagen — bekijk</span>` : '',
+    `<span class="tag">Eenheid: ${BT_UNIT_LONG[p.detectedUnit||U]}${p.detectedUnit?' (herkend)':' (van sessie)'}</span>`,
+    years.length ? `<span class="tag">${years.length===1?years[0]:years[0]+' – '+years[years.length-1]+' · '+years.length+' jaren'}</span>` : `<span class="tag">zonder datums</span>`,
+    p.rows.some(r=>r.date) && p.dateFmt ? `<span class="tag">Datums: ${p.dateFmt==='mdy'?'MM/DD':'DD/MM'}</span>` : '',
+    p.header ? `<span class="tag">kopregel herkend</span>` : '',
+    p.badDates ? `<span class="tag loss">${p.badDates} onleesbare datum${p.badDates===1?'':'s'}</span>` : '',
+    p.mixedUnits ? `<span class="tag be">meerdere eenheden in de data</span>` : '',
+  ].filter(Boolean).join('');
+  const mini = `<div class="bt-mini">
+      <div><div class="l">Trades</div><div class="v">${stat.n}</div></div>
+      <div><div class="l">Winrate</div><div class="v">${stat.winrate===null?'—':stat.winrate.toFixed(1)+'%'}</div></div>
+      <div><div class="l">Profit factor</div><div class="v">${btPf(stat.pf)}</div></div>
+      <div><div class="l">Verwachting</div><div class="v ${btSign(stat.expectancy)==='pos'?'pos-txt':btSign(stat.expectancy)==='neg'?'neg-txt':''}">${btFmt(stat.expectancy,U,true)}</div></div>
+      <div><div class="l">Netto</div><div class="v ${btSign(stat.net)==='pos'?'pos-txt':btSign(stat.net)==='neg'?'neg-txt':''}">${btFmt(stat.net,U,true)}</div></div></div>`;
+  const planHtml = `<div class="bt-plan">${plan.groups.map(g=>`<div class="row">→ <b>${escHtml(g.session ? g.session.name : g.newName)}</b><span>${g.rows.length} trades</span>
+      <span class="tag ${g.session?'':'win'}">${g.session?'bestaande sessie':'nieuwe sessie'}</span>${g.dupes?`<span class="tag be">${g.dupes} al aanwezig</span>`:''}</div>`).join('')}
+      ${plan.notes.map(n=>`<div style="color:var(--text-faint); font-size:11.5px;">${n}</div>`).join('')}</div>`;
+  const sample = `<div class="vault-scroll"><table><thead><tr><th>Datum</th><th>Tijd</th><th>Symbool</th><th>Richting</th><th>Resultaat</th><th>Tag</th><th>Notitie</th></tr></thead><tbody>
+    ${p.rows.slice(0,6).map(r=>`<tr><td>${r.date?fmtDay(r.date):'—'}</td><td>${r.time||'—'}</td><td>${escHtml(r.symbol)||'—'}</td><td>${r.dir==='long'?'Long':r.dir==='short'?'Short':'—'}</td>
+      <td class="${r.result>0?'pos-txt':r.result<0?'neg-txt':''}">${btFmt(r.result,U,true)}</td><td>${escHtml(r.tag)||''}</td><td style="font-family:'Inter',sans-serif; color:var(--text-dim);">${escHtml(r.note)}</td></tr>`).join('')}
+    ${p.rows.length>6?`<tr><td colspan="7" style="text-align:center; color:var(--text-faint); font-family:'Inter',sans-serif;">… en nog ${p.rows.length-6} trades</td></tr>`:''}</tbody></table></div>`;
+  box.innerHTML = `<div class="bt-prev"><div class="bt-prev-chips">${chips}</div>
+    ${plan.errors.map(e=>`<div class="bt-err">${e}</div>`).join('')}
+    ${mini}${planHtml}${sample}<div id="btSkipBox"></div></div>`;
+  btn.disabled = btDrop.importing || plan.errors.length>0 || toImport<=0;
+  btn.textContent = btDrop.importing ? 'Bezig met importeren…' : toImport>0 ? `Importeer ${toImport} trade${toImport===1?'':'s'}` : 'Niets nieuws om te importeren';
+}
+function btSkippedHtml(p){
+  if(!p.skipped.length) return '';
+  const shown = p.skipped.slice(0,25);
+  return `<div class="bt-skip"><b style="color:var(--text);">Overgeslagen regels</b> (de rest werd gewoon gelezen)<table><tbody>
+    ${shown.map(x=>`<tr><td style="color:var(--text-faint); width:48px;">r${x.n}</td><td style="max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escHtml(x.text)}</td><td style="color:var(--neg); font-family:'Inter',sans-serif;">${escHtml(x.reason)}</td></tr>`).join('')}
+    ${p.skipped.length>shown.length?`<tr><td colspan="3" style="color:var(--text-faint);">… en nog ${p.skipped.length-shown.length}</td></tr>`:''}</tbody></table></div>`;
+}
+function btShowSkipped(){ const b = $('#btSkipBox'); if(b && btDrop.parsed) b.innerHTML = b.innerHTML ? '' : btSkippedHtml(btDrop.parsed); }
+function btClearDrop(){
+  $('#btText').value = ''; btDrop.parsed = null; btDrop.dupTouched = false; $('#btSkipDupes').checked = false;
+  btRenderPreview(); btDropOpen = null; btApplyDropOpen();
+}
+
+async function btImport(){
+  if(btDrop.importing || !btDrop.parsed) return;
+  const plan = btMakePlan(btDrop.parsed);
+  if(plan.errors.length || !plan.groups.length) return;
+  const skipDupes = plan.dupTotal>0 && $('#btSkipDupes').checked;
+  if(btDrop.mode==='replace' && btDrop.target!=='new'){
+    const doomed = plan.groups.reduce((a,g)=>a + (g.session ? btTradesOf(g.session.id).length : 0), 0);
+    if(doomed>0 && !confirm(`Je vervangt ${doomed} bestaande trade${doomed===1?'':'s'} door de nieuwe data. Doorgaan?`)) return;
+  }
+  btDrop.importing = true; btRenderPreview();
+  let total = 0, lastId = null, createdCount = 0;
+  try{
+    for(const g of plan.groups){
+      let s = g.session;
+      if(!s){
+        const row = { name:g.newName, year:g.year, unit:g.unit, be_threshold:0 };
+        const { data, error } = await supabase.from('backtest_sessions').insert(row).select().single();
+        if(error) throw error;
+        s = btMapSession(data); btSessions.push(s); createdCount++;
+      } else if(g.unitChange){
+        const { error } = await supabase.from('backtest_sessions').update({ unit:g.unit }).eq('id', s.id);
+        if(error) throw error; s.unit = g.unit;
+      }
+      if(btDrop.mode==='replace' && btDrop.target!=='new' && btTradesOf(s.id).length){
+        const { error } = await supabase.from('backtest_trades').delete().eq('session_id', s.id);
+        if(error) throw error;
+        btTrades = btTrades.filter(t=>t.sessionId!==s.id); btIndexCache = null;
+      }
+      let rows = g.rows;
+      if(skipDupes && g.dupFlags) rows = rows.filter((r,i)=>!g.dupFlags[i]);
+      const start = btTradesOf(s.id).reduce((m,t)=>Math.max(m,t.seq),0) + 1;
+      const payload = rows.map((r,i)=>({ session_id:s.id, seq:start+i, trade_date:r.date||null, trade_time:r.time||null, symbol:r.symbol||null, direction:r.dir||null, result:r.result, tag:r.tag||null, note:r.note||null }));
+      for(let i=0;i<payload.length;i+=500){
+        const { data, error } = await supabase.from('backtest_trades').insert(payload.slice(i,i+500)).select(BT_TRADE_COLS);
+        if(error) throw error;
+        (data||[]).forEach(r=>btTrades.push(btMapTrade(r))); btIndexCache = null;
+        const b = $('#btImportBtn'); if(b) b.textContent = `Importeren… ${Math.min(total+i+500, plan.rowTotal)}`;
+      }
+      total += payload.length; lastId = s.id;
+    }
+    $('#btText').value = ''; btDrop.parsed = null; btDrop.dupTouched = false; $('#btSkipDupes').checked = false;
+    showToast(`${total} trade${total===1?'':'s'} geïmporteerd ✓` + (createdCount ? ` · ${createdCount} nieuwe sessie${createdCount===1?'':'s'}` : ''));
+    btDrop.importing = false;
+    btDropOpen = false;
+    btSelect(plan.groups.length===1 ? lastId : 'overview');
+  }catch(e){
+    console.error('backtest import failed', e);
+    showToast('Importeren mislukt: ' + (e.message||'onbekende fout'));
+    btDrop.importing = false;
+    await btReload();             // show what actually made it into the database
+  }
+}
+
+/* ---------- session modal ---------- */
+const btsState = { id:null, unit:'R' };
+function btRenderUnitChips(){
+  $('#btsUnit').innerHTML = Object.keys(BT_UNIT_LONG).map(k=>`<div class="chip${btsState.unit===k?' selected':''}" data-val="${k}">${BT_UNIT_LONG[k]}</div>`).join('');
+  $('#btsUnit').querySelectorAll('.chip').forEach(c=>c.addEventListener('click', ()=>{ btsState.unit = c.dataset.val; btRenderUnitChips(); }));
+  const s = btsState.id ? btSession(btsState.id) : null;
+  $('#btsUnitHint').textContent = s && btTradesOf(s.id).length && s.unit!==btsState.unit ? 'Let op: de bestaande getallen blijven staan en worden alleen anders gelabeld.' : '';
+}
+function btOpenSession(id){
+  const s = id ? btSession(id) : null;
+  btsState.id = s ? s.id : null; btsState.unit = s ? s.unit : 'R';
+  $('#btsTitle').textContent = s ? 'Sessie-instellingen' : 'Nieuwe sessie';
+  $('#btsName').value = s ? s.name : '';
+  $('#btsYear').value = s && s.year ? s.year : (s ? '' : new Date().getFullYear()-1);
+  $('#btsStrategy').value = s ? s.strategy : '';
+  $('#btsBe').value = s ? s.be : 0;
+  $('#btsBeZero').checked = s ? s.beZero : false;
+  $('#btsStart').value = s ? s.startBalance : 10000;
+  $('#btsRisk').value = s ? s.riskPct : 1;
+  $('#btsNotes').value = s ? s.notes : '';
+  $('#btsClearBtn').style.display = s ? '' : 'none';
+  $('#btsDeleteBtn').style.display = s ? '' : 'none';
+  btRenderUnitChips();
+  if(!s && !$('#btsName').value) $('#btsName').value = $('#btsYear').value ? 'Backtest ' + $('#btsYear').value : '';
+  $('#btSessModalBg').style.display = 'flex'; document.body.style.overflow = 'hidden';
+  setTimeout(()=>{ const n = $('#btsName'); if(n) n.focus(); }, 30);
+}
+function btCloseModal(id){ $('#'+id).style.display = 'none'; document.body.style.overflow = ''; }
+function btBackdrop(e, id){ if(e && e.target===e.currentTarget) btCloseModal(id); }
+async function btSaveSessionModal(){
+  const name = $('#btsName').value.trim();
+  if(!name){ showToast('Geef de sessie een naam'); $('#btsName').focus(); return; }
+  const yr = parseInt($('#btsYear').value, 10);
+  const num = (id, d, min)=>{ const v = parseFloat(String($('#'+id).value).replace(',','.')); return isFinite(v) && v>=min ? v : d; };
+  const row = { name, year:isFinite(yr) ? yr : null, strategy:$('#btsStrategy').value.trim() || null, unit:btsState.unit,
+    be_threshold:num('btsBe',0,0), be_as_zero:$('#btsBeZero').checked, start_balance:num('btsStart',10000,1), risk_pct:num('btsRisk',1,0.01), notes:$('#btsNotes').value.trim() || null };
+  const b = $('#btsSaveBtn'); b.disabled = true; b.textContent = 'Opslaan…';
+  try{
+    if(btsState.id){
+      const { error } = await supabase.from('backtest_sessions').update(row).eq('id', btsState.id);
+      if(error) throw error;
+      const i = btSessions.findIndex(x=>x.id===btsState.id);
+      if(i>=0) btSessions[i] = btMapSession({ ...row, id:btsState.id, created_at:btSessions[i].createdAt });
+    } else {
+      const { data, error } = await supabase.from('backtest_sessions').insert(row).select().single();
+      if(error) throw error;
+      btSessions.push(btMapSession(data)); btsState.id = data.id;
+    }
+    btCloseModal('btSessModalBg'); showToast('Opgeslagen ✓');
+    btSelect(btsState.id);
+  }catch(e){ console.error(e); showToast('Opslaan mislukt: ' + (e.message||'draai eerst de Backtest-migratie')); }
+  finally{ b.disabled = false; b.textContent = 'Opslaan'; }
+}
+async function btClearSession(){
+  const s = btSession(btsState.id); if(!s) return;
+  const n = btTradesOf(s.id).length;
+  if(!n){ showToast('Deze sessie heeft geen trades'); return; }
+  if(!confirm(`Alle ${n} trades in “${s.name}” wissen? De sessie zelf blijft bestaan.`)) return;
+  try{
+    const { error } = await supabase.from('backtest_trades').delete().eq('session_id', s.id);
+    if(error) throw error;
+    btTrades = btTrades.filter(t=>t.sessionId!==s.id); btIndexCache = null;
+    btCloseModal('btSessModalBg'); showToast('Trades gewist'); btRenderAll();
+  }catch(e){ showToast('Wissen mislukt: ' + (e.message||'')); }
+}
+async function btDeleteSession(){
+  const s = btSession(btsState.id); if(!s) return;
+  const n = btTradesOf(s.id).length;
+  const typed = prompt(`Je verwijdert “${s.name}” en ${n} trade${n===1?'':'s'}. Typ de naam van de sessie om te bevestigen:`);
+  if(typed===null) return;
+  if(typed.trim() !== s.name){ showToast('Naam komt niet overeen — niets verwijderd'); return; }
+  try{
+    const { error } = await supabase.from('backtest_sessions').delete().eq('id', s.id);
+    if(error) throw error;
+    btSessions = btSessions.filter(x=>x.id!==s.id); btTrades = btTrades.filter(t=>t.sessionId!==s.id); btIndexCache = null;
+    btCloseModal('btSessModalBg'); showToast('Sessie verwijderd');
+    btSelect('overview');
+  }catch(e){ showToast('Verwijderen mislukt: ' + (e.message||'')); }
+}
+
+/* ---------- single trade modal ---------- */
+const bttState = { id:null, dir:null };
+function btRenderDirChips(){
+  const opts = [['long','Long'],['short','Short'],['','Geen']];
+  $('#bttDir').innerHTML = opts.map(([k,l])=>`<div class="chip${(bttState.dir||'')===k?' selected':''}" data-val="${k}">${l}</div>`).join('');
+  $('#bttDir').querySelectorAll('.chip').forEach(c=>c.addEventListener('click', ()=>{ bttState.dir = c.dataset.val || null; btRenderDirChips(); }));
+}
+function btOpenTrade(id){
+  const s = btSession(btSelected); if(!s){ showToast('Kies eerst een sessie'); return; }
+  const t = id ? btTrades.find(x=>x.id===id) : null;
+  bttState.id = t ? t.id : null; bttState.dir = t ? t.direction : null;
+  $('#bttTitle').textContent = t ? 'Trade bewerken' : 'Nieuwe trade';
+  $('#bttResultLabel').textContent = `Resultaat (${BT_UNIT_LONG[s.unit].replace(/ \(.*/,'')})`;
+  $('#bttDate').value = t ? (t.date||'') : ''; $('#bttTime').value = t ? (t.time||'') : '';
+  $('#bttSymbol').value = t ? t.symbol : ''; $('#bttResult').value = t ? t.result : '';
+  $('#bttTag').value = t ? t.tag : ''; $('#bttNote').value = t ? t.note : '';
+  $('#bttTags').innerHTML = [...new Set(btTrades.map(x=>x.tag).filter(Boolean))].map(x=>`<option value="${escHtml(x)}">`).join('');
+  $('#bttDeleteBtn').style.display = t ? '' : 'none';
+  btRenderDirChips();
+  $('#btTradeModalBg').style.display = 'flex'; document.body.style.overflow = 'hidden';
+  setTimeout(()=>{ const r = $('#bttResult'); if(r) r.focus(); }, 30);
+}
+async function btSaveTrade(){
+  const s = btSession(btSelected); if(!s) return;
+  const result = parseFloat(String($('#bttResult').value).replace(',','.'));
+  if(!isFinite(result)){ showToast('Vul een geldig resultaat in'); $('#bttResult').focus(); return; }
+  const time = $('#bttTime').value.trim();
+  if(time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)){ showToast('Tijd als HH:MM, bv. 14:30'); return; }
+  const row = { trade_date:$('#bttDate').value || null, trade_time:time ? time.padStart(5,'0') : null, symbol:$('#bttSymbol').value.trim().toUpperCase() || null,
+    direction:bttState.dir || null, result, tag:$('#bttTag').value.trim() || null, note:$('#bttNote').value.trim() || null };
+  const b = $('#bttSaveBtn'); b.disabled = true; b.textContent = 'Opslaan…';
+  try{
+    if(bttState.id){
+      const { error } = await supabase.from('backtest_trades').update(row).eq('id', bttState.id);
+      if(error) throw error;
+      const i = btTrades.findIndex(x=>x.id===bttState.id);
+      if(i>=0) btTrades[i] = btMapTrade({ ...row, id:bttState.id, session_id:s.id, seq:btTrades[i].seq });
+    } else {
+      const seq = btTradesOf(s.id).reduce((m,t)=>Math.max(m,t.seq),0) + 1;
+      const { data, error } = await supabase.from('backtest_trades').insert({ ...row, session_id:s.id, seq }).select(BT_TRADE_COLS).single();
+      if(error) throw error;
+      btTrades.push(btMapTrade(data));
+    }
+    btIndexCache = null; btCloseModal('btTradeModalBg'); showToast('Opgeslagen ✓');
+    btRenderSessions(); btRenderHead(); btRenderBody();
+  }catch(e){ console.error(e); showToast('Opslaan mislukt: ' + (e.message||'')); }
+  finally{ b.disabled = false; b.textContent = 'Opslaan'; }
+}
+async function btDeleteTrade(){
+  if(!bttState.id || !confirm('Deze trade verwijderen?')) return;
+  try{
+    const { error } = await supabase.from('backtest_trades').delete().eq('id', bttState.id);
+    if(error) throw error;
+    btTrades = btTrades.filter(x=>x.id!==bttState.id); btIndexCache = null;
+    btCloseModal('btTradeModalBg'); showToast('Trade verwijderd');
+    btRenderSessions(); btRenderHead(); btRenderBody();
+  }catch(e){ showToast('Verwijderen mislukt: ' + (e.message||'')); }
+}
+
+/* ---------- wiring (called from initApp) ---------- */
+function btInit(){
+  const ta = $('#btText'); if(!ta) return;
+  ta.addEventListener('input', ()=>{ btDropOpen = null; btDebounce('analyze', btAnalyze, 350); });
+  ta.addEventListener('paste', ()=>{ setTimeout(()=>{ btDebounce('analyze', btAnalyze, 50); }, 0); });
+  const zone = $('#btZone');
+  const readFile = f=>{ if(!f) return; const r = new FileReader(); r.onload = ()=>{ ta.value = String(r.result||''); btDropOpen = true; btApplyDropOpen(); btAnalyze(); }; r.readAsText(f); };
+  ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev, e=>{ e.preventDefault(); zone.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev, e=>{ e.preventDefault(); zone.classList.remove('drag'); }));
+  zone.addEventListener('drop', e=>{ const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; readFile(f); });
+  $('#btFile').addEventListener('change', e=>{ readFile(e.target.files[0]); e.target.value = ''; });
+  const group = (id, fn)=>{ const g = document.getElementById(id); if(!g) return; g.addEventListener('click', e=>{ const c = e.target.closest('.chip'); if(!c) return;
+    [...g.children].forEach(x=>x.classList.toggle('selected', x===c)); fn(c.dataset.val); }); };
+  group('btTargetChips', v=>{ btDrop.target = v; btDrop.dupTouched = false; btRenderTargetChips(); btAnalyze(); });
+  group('btFmt', v=>{ btDrop.fmt = v; btAnalyze(); });
+  group('btMode', v=>{ btDrop.mode = v; btDrop.dupTouched = false; btAnalyze(); });
+  $('#btNewName').addEventListener('input', ()=>btDebounce('plan', btRenderPreview, 200));
+  $('#btSym').addEventListener('input', ()=>btDebounce('analyze', btAnalyze, 350));
+  $('#btReverse').addEventListener('change', btAnalyze);
+  $('#btSkipDupes').addEventListener('change', ()=>{ btDrop.dupTouched = true; btRenderPreview(); });
+  document.addEventListener('keydown', e=>{
+    if(e.key!=='Escape') return;
+    ['btSessModalBg','btTradeModalBg'].forEach(id=>{ const m = document.getElementById(id); if(m && m.style.display==='flex') btCloseModal(id); });
+  });
+}
+
+
+/* ============================================================
    INIT
    ============================================================ */
 function initApp(){
@@ -4314,6 +6118,7 @@ function initApp(){
   setupJournalUpload('jEntryDrop','jEntryInput','entry');
   setupJournalUpload('jExitDrop','jExitInput','exit');
   setupCsvImport();
+  btInit();
   // Changing the timezone should immediately re-show the converted times.
   const tzDd = document.getElementById('csvTz');
   if(tzDd){
@@ -4381,6 +6186,32 @@ window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
 window.refreshNow = refreshNow;
 window.switchViewGlobal = switchView;
+window.btSelect = btSelect;
+window.btOpenSession = btOpenSession;
+window.btOpenTrade = btOpenTrade;
+window.btCloseModal = btCloseModal;
+window.btBackdrop = btBackdrop;
+window.btSaveSessionModal = btSaveSessionModal;
+window.btClearSession = btClearSession;
+window.btDeleteSession = btDeleteSession;
+window.btSaveTrade = btSaveTrade;
+window.btDeleteTrade = btDeleteTrade;
+window.btBeStep = btBeStep;
+window.btBePreset = btBePreset;
+window.btSetBe = btSetBe;
+window.btSetBeZero = btSetBeZero;
+window.btImport = btImport;
+window.btClearDrop = btClearDrop;
+window.btToggleDrop = btToggleDrop;
+window.btToggleHelp = btToggleHelp;
+window.btShowSkipped = btShowSkipped;
+window.btTradesMore = btTradesMore;
+window.btSetTradeFilter = btSetTradeFilter;
+window.btSetBreak = btSetBreak;
+window.btSetEq = btSetEq;
+window.btSimInput = btSimInput;
+window.btSetCompound = btSetCompound;
+window.btOpenDrop = btOpenDrop;
 
 /* ---------- boot ---------- */
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initApp);
