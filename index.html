@@ -833,6 +833,7 @@
         <div class="sub"><span id="logCount">0</span> trades — tik een trade om je journal in te vullen.</div>
       </div>
       <div class="topbar-actions">
+        <button type="button" class="btn secondary small" onclick="openManualTrade()">+ Trade handmatig</button>
         <button type="button" class="btn secondary small" id="refreshBtn" onclick="refreshNow()">↻ Ververs</button>
       </div>
     </div>
@@ -1088,6 +1089,11 @@ notitie    alle overige woorden</pre>
             <input type="text" id="csvAccountLabel" placeholder="Naam van het nieuwe account" style="display:none; margin-top:8px;">
             <div id="csvAccountHint" style="font-size:11px; color:var(--text-faint); margin-top:5px;"></div>
           </div>
+          <div class="field" id="csvBalWrap" style="display:none;">
+            <label>Accountbalans ($)</label>
+            <input type="number" step="any" min="0" id="csvBalance" placeholder="bv. 50000">
+            <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">Nodig voor de breakeven-drempel (standaard 0,2% van je balans).</div>
+          </div>
           <div class="field">
             <label>Tijdzone van de CSV-tijden</label>
             <div class="dd" id="csvTz" data-value="-4">
@@ -1189,6 +1195,45 @@ notitie    alle overige woorden</pre>
       <button type="button" class="btn" id="bttSaveBtn" style="flex:1;" onclick="btSaveTrade()">Opslaan</button>
       <button type="button" class="btn danger" id="bttDeleteBtn" style="display:none;" onclick="btDeleteTrade()">Verwijderen</button>
     </div>
+  </div>
+</div>
+
+<div id="manualModalBg" class="modal-bg" style="display:none;" onclick="closeManualFromBackdrop(event)">
+  <div class="modal" style="max-width:640px;" onclick="event.stopPropagation()">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h2 style="margin:0;">Trade handmatig toevoegen</h2>
+      <button type="button" class="btn secondary small" onclick="closeManualTrade()">Sluiten</button>
+    </div>
+    <div style="font-size:12px; color:var(--text-faint); margin-bottom:14px;">Voor dagen die je niet meer kan exporteren. De dollars rekent het systeem zelf uit uit je prijzen. Je kan er daarna gewoon notities bij zetten.</div>
+    <div class="form-row c2" style="margin-bottom:12px;">
+      <div class="field"><label>Account</label><select id="mtAccount" onchange="manualAccountChanged()"></select>
+        <div id="mtNewWrap" style="display:none; margin-top:8px;"><input type="text" id="mtNewName" placeholder="Naam van het nieuwe account"></div></div>
+      <div class="field" id="mtBalWrap" style="display:none;"><label>Accountbalans ($)</label><input type="number" step="any" min="0" id="mtBalance" placeholder="bv. 50000">
+        <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">Nodig voor de breakeven-drempel (standaard 0,2% van je balans).</div></div>
+    </div>
+    <div class="form-row c2" style="margin-bottom:12px;">
+      <div class="field"><label>Instrument</label><input type="text" id="mtSymbol" list="mtSymbols" placeholder="bv. MNQ, MES, NQ, ES" oninput="manualPreview()" style="text-transform:uppercase;">
+        <datalist id="mtSymbols"><option value="MNQ"><option value="MES"><option value="NQ"><option value="ES"><option value="MYM"><option value="YM"><option value="M2K"><option value="RTY"><option value="MGC"><option value="GC"><option value="MCL"><option value="CL"></datalist></div>
+      <div class="field"><label>Richting</label>
+        <div class="chips-row" id="mtDir"><div class="chip selected" data-val="long" onclick="manualSetDir('long')">Long</div><div class="chip" data-val="short" onclick="manualSetDir('short')">Short</div></div></div>
+    </div>
+    <div class="form-row c3" style="margin-bottom:12px;">
+      <div class="field"><label>Aantal contracten</label><input type="number" step="any" min="0" id="mtQty" oninput="manualPreview()"></div>
+      <div class="field"><label>Entry-prijs</label><input type="number" step="any" id="mtEntry" oninput="manualPreview()"></div>
+      <div class="field"><label>Exit-prijs (gemiddeld)</label><input type="number" step="any" id="mtExit" oninput="manualPreview()"></div>
+    </div>
+    <div class="form-row c2" style="margin-bottom:12px;">
+      <div class="field"><label>Open (jouw tijd)</label><input type="datetime-local" id="mtOpen"></div>
+      <div class="field"><label>Sluiting (jouw tijd)</label><input type="datetime-local" id="mtClose"></div>
+    </div>
+    <div class="form-row c2" style="margin-bottom:12px;">
+      <div class="field"><label>Commissie totaal ($) <span style="color:var(--text-ghost);">(optioneel)</span></label><input type="number" step="0.01" min="0" id="mtCommission" oninput="manualPreview()">
+        <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">Leeg = commissie per contract van het account × aantal.</div></div>
+      <div class="field"><label>Bruto resultaat ($) <span style="color:var(--text-ghost);">(optioneel)</span></label><input type="number" step="any" id="mtGross" oninput="manualPreview()">
+        <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">Alleen invullen als je het exact weet of het contract onbekend is.</div></div>
+    </div>
+    <div id="mtPreview" style="padding:12px 14px; background:var(--surface-1); border:1px solid var(--hairline); border-radius:10px; font-size:13px; margin-bottom:14px;"></div>
+    <button type="button" class="btn" id="mtSaveBtn" style="width:100%;" onclick="saveManualTrade()">Trade opslaan</button>
   </div>
 </div>
 
@@ -1322,6 +1367,7 @@ notitie    alle overige woorden</pre>
     </div>
 
     <button type="button" class="btn" id="saveJournalBtn" style="width:100%;" onclick="saveJournal()">Journal Opslaan</button>
+    <button type="button" class="btn secondary small" id="jDeleteManualBtn" style="display:none; width:100%; margin-top:10px; color:var(--neg);" onclick="deleteManualTrade()">Deze handmatige trade verwijderen</button>
   </div>
 </div>
 
@@ -2606,6 +2652,7 @@ function openJournal(tradeId){
     if(rep){ t = rep; tradeId = rep.id; showToast('Kopie-trade: je journalt de trade op je hoofdaccount'); }
   }
   editingJournalTradeId = tradeId;
+  { const dm = document.getElementById('jDeleteManualBtn'); if(dm) dm.style.display = t.source==='manual' ? 'block' : 'none'; }
 
   // Read-only broker facts
   const o = outcomeOf(t);
@@ -3104,6 +3151,134 @@ function buildTradesFromOrders(dataRows, headers, offsetHours){
   return { trades, problems, cancelled };
 }
 
+/* ============================================================
+   MANUAL TRADE — for days you can no longer export
+   Dollars follow from price move x quantity x the contract's point value, the
+   same way the orders import does it. For a contract we don't know, type the
+   gross P&L yourself.
+   ============================================================ */
+const manualState = { dir:'long' };
+function manualRenderAccounts(){
+  const sel = document.getElementById('mtAccount'); if(!sel) return;
+  const previous = sel.value;
+  const importable = accounts.filter(a => a.broker_type !== 'manual_legacy');
+  sel.innerHTML = importable.map(a=>`<option value="${a.id}">${escHtml(a.account_label)}</option>`).join('') + `<option value="__new__">+ Nieuw account aanmaken…</option>`;
+  if(previous && [...sel.options].some(o=>o.value===previous)) sel.value = previous;
+  else if(activeAccountId !== 'all' && importable.some(a=>a.id===activeAccountId)) sel.value = activeAccountId;
+  manualAccountChanged();
+}
+function manualAccountChanged(){
+  const sel = document.getElementById('mtAccount'); if(!sel) return;
+  const isNew = sel.value === '__new__';
+  const acc = accounts.find(a=>a.id===sel.value);
+  document.getElementById('mtNewWrap').style.display = isNew ? 'block' : 'none';
+  const needBal = isNew || (acc && !(Number(acc.balance) > 0));
+  document.getElementById('mtBalWrap').style.display = needBal ? 'block' : 'none';
+  document.getElementById('mtCommission').placeholder = acc && Number(acc.commission_per_contract) ? `${Number(acc.commission_per_contract).toFixed(2)} per contract (van dit account)` : 'bv. 1.00';
+  manualPreview();
+}
+function manualSetDir(d){
+  manualState.dir = d;
+  document.querySelectorAll('#mtDir .chip').forEach(c=>c.classList.toggle('selected', c.dataset.val===d));
+  manualPreview();
+}
+function manualCompute(){
+  const num = id => { const v = parseFloat(String(document.getElementById(id).value).replace(',','.')); return isFinite(v) ? v : null; };
+  const symbol = document.getElementById('mtSymbol').value.trim();
+  const qty = num('mtQty'), entry = num('mtEntry'), exit = num('mtExit');
+  const override = num('mtGross');
+  const { pv } = pointValueFor(symbol);
+  let gross = null;
+  if(override !== null) gross = override;
+  else if(pv !== null && qty && entry !== null && exit !== null) gross = Math.round((manualState.dir==='long' ? exit-entry : entry-exit) * qty * pv * 100) / 100;
+  const sel = document.getElementById('mtAccount');
+  const acc = accounts.find(a=>a.id===(sel&&sel.value));
+  const commField = num('mtCommission');
+  const commission = commField !== null ? Math.abs(commField) : Math.abs(acc ? Number(acc.commission_per_contract)||0 : 0) * (qty||0);
+  return { symbol, qty, entry, exit, pv, gross, commission, net: gross===null ? null : Math.round((gross - commission)*100)/100, override };
+}
+function manualPreview(){
+  const el = document.getElementById('mtPreview'); if(!el) return;
+  const c = manualCompute();
+  if(c.symbol && c.pv === null && c.override === null){
+    el.innerHTML = `<span style="color:var(--be);">Ik ken “${escHtml(c.symbol)}” niet — vul hieronder zelf het bruto resultaat in.</span>`; return;
+  }
+  if(c.gross === null){ el.innerHTML = `<span style="color:var(--text-faint);">Vul aantal, entry en exit in en ik reken het resultaat uit.</span>`; return; }
+  el.innerHTML = `Bruto <b>${fmtMoneySigned(c.gross)}</b> · commissie <b>${fmtMoney(-c.commission)}</b> · netto <b style="color:${c.net>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(c.net)}</b>` +
+    (c.override===null && c.pv!==null ? ` <span style="color:var(--text-faint);">(${c.pv} $ per punt)</span>` : '');
+}
+function toLocalInput(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+function openManualTrade(){
+  { const ms = document.getElementById('mtAccount'); if(ms) ms.innerHTML = ''; }   // forget an earlier "+ nieuw account" choice
+  manualRenderAccounts();
+  ['mtSymbol','mtQty','mtEntry','mtExit','mtGross','mtCommission','mtNewName','mtBalance'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  const now = new Date(); const earlier = new Date(now.getTime() - 15*60000);
+  document.getElementById('mtOpen').value = toLocalInput(earlier);
+  document.getElementById('mtClose').value = toLocalInput(now);
+  manualSetDir('long');
+  document.getElementById('manualModalBg').style.display = 'flex'; document.body.style.overflow = 'hidden';
+  setTimeout(()=>document.getElementById('mtSymbol').focus(), 30);
+}
+function closeManualTrade(){ document.getElementById('manualModalBg').style.display = 'none'; document.body.style.overflow = ''; }
+function closeManualFromBackdrop(e){ if(e && e.target === e.currentTarget) closeManualTrade(); }
+async function saveManualTrade(){
+  const c = manualCompute();
+  const btn = document.getElementById('mtSaveBtn');
+  const fail = m => showToast(m);
+  const sel = document.getElementById('mtAccount');
+  if(!sel.value) return fail('Kies een account');
+  if(!c.symbol) return fail('Vul het instrument in (bv. MNQ)');
+  if(!c.qty || c.qty <= 0) return fail('Vul het aantal contracten in');
+  if(c.gross === null) return fail(c.pv===null ? 'Onbekend contract — vul het bruto resultaat zelf in' : 'Vul entry- en exitprijs in');
+  const openD = new Date(document.getElementById('mtOpen').value), closeD = new Date(document.getElementById('mtClose').value);
+  if(isNaN(openD) || isNaN(closeD)) return fail('Vul open- en sluittijd in');
+  if(closeD < openD) return fail('De sluittijd ligt vóór de opentijd');
+  const isNew = sel.value === '__new__';
+  const newName = document.getElementById('mtNewName').value.trim();
+  if(isNew && !newName) return fail('Geef het nieuwe account een naam');
+  btn.disabled = true; btn.textContent = 'Opslaan…';
+  try{
+    const userId = (await supabase.auth.getUser()).data.user.id;
+    const bal = parseFloat(String(document.getElementById('mtBalance').value).replace(',','.'));
+    let account = accounts.find(a=>a.id===sel.value);
+    if(isNew){
+      const { data, error } = await supabase.from('broker_accounts').insert({
+        user_id:userId, broker_type:'tradovate', account_label:newName, external_account_id:'manual:'+newName,
+        account_currency:'USD', connection_status:'connected', be_threshold_pct:DEFAULT_BE_PCT,
+        ...(bal>0 ? { balance:bal } : {}),
+      }).select().single();
+      if(error) throw error; account = data;
+    } else if(account && bal>0 && !(Number(account.balance)>0)){
+      const { error } = await supabase.from('broker_accounts').update({ balance:bal }).eq('id', account.id);
+      if(error) throw error;
+    }
+    const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
+    const long = manualState.dir === 'long';
+    const row = {
+      user_id:userId, account_id:account.id, source:'manual', external_id:'manual:' + id,
+      symbol:c.symbol.toUpperCase(), direction:manualState.dir, volume:c.qty,
+      open_time:openD.toISOString(), close_time:closeD.toISOString(),
+      open_price: c.entry, close_price: c.exit,
+      gross_pnl:c.gross, commission:-c.commission, swap:0, net_pnl:c.net,
+    };
+    const { error } = await supabase.from('broker_trades').insert(row);
+    if(error) throw error;
+    await loadAll();
+    closeManualTrade(); showToast('Trade toegevoegd ✓');
+  }catch(e){ console.error('manual trade failed', e); showToast('Opslaan mislukt: ' + (e.message||'')); }
+  finally{ btn.disabled = false; btn.textContent = 'Trade opslaan'; }
+}
+async function deleteManualTrade(){
+  const t = brokerTrades.find(x=>x.id===editingJournalTradeId);
+  if(!t || t.source !== 'manual') return;
+  if(!confirm('Deze handmatig toegevoegde trade (en zijn journal-notities) verwijderen?')) return;
+  try{
+    const { error } = await supabase.from('broker_trades').delete().eq('id', t.id);
+    if(error) throw error;
+    closeJournal(); await loadAll(); showToast('Trade verwijderd');
+  }catch(e){ showToast('Verwijderen mislukt: ' + (e.message||'')); }
+}
+
 /* ---------- Scale-outs: one position, several exit rows ----------
    Taking partial profits (a limit sell for a second target, say) makes the
    broker report one row per exit. Left alone those look like separate trades,
@@ -3212,6 +3387,7 @@ function updateCsvAccountFields(){
   if(!sel || !nameInput) return;
   const isNew = sel.value === '__new__';
   nameInput.style.display = isNew ? 'block' : 'none';
+  { const accB = accounts.find(a=>a.id===sel.value); const bw = document.getElementById('csvBalWrap'); if(bw) bw.style.display = (isNew || (accB && !(Number(accB.balance)>0))) ? 'block' : 'none'; }
   if(isNew){
     if(hint) hint.textContent = 'Er wordt een nieuw account aangemaakt met deze naam.';
     if(commInput) commInput.placeholder = 'bv. 1.22';
@@ -3235,6 +3411,7 @@ function csvTargetAccount(){
   return acc ? { isNew:false, account:acc, label:acc.account_label } : { isNew:true, label:'CSV import' };
 }
 
+function csvBalanceValue(){ const el = document.getElementById('csvBalance'); const v = el ? parseFloat(String(el.value).replace(',','.')) : NaN; return isFinite(v) ? v : 0; }
 function csvMergeEnabled(){
   const el = document.getElementById('csvMergeScaleOuts');
   return el ? el.checked : true;
@@ -3408,10 +3585,16 @@ async function doCsvImport(){
         user_id: userId, broker_type:'tradovate', account_label: label,
         external_account_id: 'csv:'+label, account_currency:'USD', connection_status:'connected',
         commission_per_contract: rate,
+        be_threshold_pct: DEFAULT_BE_PCT,
+        ...(csvBalanceValue() > 0 ? { balance: csvBalanceValue() } : {}),
       }).select().single();
       if(error) throw error;
       account = data;
-    } else if(rate && Number(account.commission_per_contract) !== rate){
+    } else if(csvBalanceValue() > 0 && !(Number(account.balance) > 0)){
+      await supabase.from('broker_accounts').update({ balance: csvBalanceValue() }).eq('id', account.id);
+      account.balance = csvBalanceValue();
+    }
+    if(account && rate && Number(account.commission_per_contract) !== rate){
       // Remember the rate on the account, so it applies to future imports too.
       await supabase.from('broker_accounts')
         .update({ commission_per_contract: rate }).eq('id', account.id);
@@ -3438,6 +3621,7 @@ async function doCsvImport(){
     document.getElementById('csvPreview').style.display='none';
     document.getElementById('csvHint').textContent='Klik hier of sleep je CSV-bestand naartoe';
     document.getElementById('csvInput').value='';
+    { const cb = document.getElementById('csvBalance'); if(cb) cb.value=''; }
   }catch(e){
     console.error('CSV import failed', e);
     showToast('Import mislukt: ' + (e.message||''));
@@ -6288,6 +6472,9 @@ window.toggleAccountKpi = toggleAccountKpi;
 window.logShowMore = logShowMore;
 window.toggleAccountOpen = toggleAccountOpen;
 window.openFinModal = openFinModal;
+window.openManualTrade = openManualTrade; window.closeManualTrade = closeManualTrade; window.closeManualFromBackdrop = closeManualFromBackdrop;
+window.saveManualTrade = saveManualTrade; window.deleteManualTrade = deleteManualTrade; window.manualPreview = manualPreview;
+window.manualAccountChanged = manualAccountChanged; window.manualSetDir = manualSetDir;
 window.closeFinModal = closeFinModal;
 window.closeFinFromBackdrop = closeFinFromBackdrop;
 window.saveFinEntry = saveFinEntry;
