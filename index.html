@@ -1075,6 +1075,7 @@ notitie    alle overige woorden</pre>
         <div style="font-size:13px; color:var(--text-dim); line-height:1.7; margin-bottom:16px;">
           Voor brokers zonder API-toegang (zoals <strong>Tradovate / Apex</strong>). Exporteer in Tradovate via
           <strong>Reports → Performance → Download CSV</strong> en sleep het bestand hieronder.
+          <br><strong>Tradesea / Rithmic:</strong> download je <strong>Orders</strong> als CSV (Orders / Trade History) en sleep dat hieronder — het systeem maakt er zelf trades van.
           <br>
           Je mag gerust telkens je volledige geschiedenis uploaden — trades die er al in staan worden automatisch
           overgeslagen, en je journal-notities blijven altijd behouden.
@@ -1106,7 +1107,7 @@ notitie    alle overige woorden</pre>
           <label>Commissie per contract ($)</label>
           <input type="number" step="0.01" min="0" id="csvCommission" placeholder="bv. 1.22">
           <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">
-            Tradovate exporteert <strong>bruto</strong> P&amp;L, zonder kosten — daarom wijkt het af van je prop
+            (Een Tradesea-orderbestand bevat de commissie al per order; dit veld wordt dan genegeerd.) Tradovate exporteert <strong>bruto</strong> P&amp;L, zonder kosten — daarom wijkt het af van je prop
             firm-dashboard. Vul je commissie per contract (round turn) in en de bedragen kloppen weer.
             Weet je het niet precies? Deel het verschil tussen je dashboard en je bruto-totaal door het aantal
             verhandelde contracten.
@@ -2939,6 +2940,7 @@ function csvExternalId(cells, map, isLong){
 }
 
 function buildTradesFromCsv(dataRows, map, offsetHours, commissionPerContract){
+  if(csvState.kind === 'orders') return buildTradesFromOrders(dataRows, csvState.headers, offsetHours);
   commissionPerContract = Number(commissionPerContract) || 0;
   const trades = [];
   const problems = [];
@@ -2991,6 +2993,115 @@ function buildTradesFromCsv(dataRows, map, offsetHours, commissionPerContract){
     });
   });
   return { trades, problems };
+}
+
+/* ---------- Orders-export (Tradesea / Rithmic): fills -> trades ----------
+   Some platforms (Tradesea, for one) only export an ORDER list: one row per
+   order with side, quantity, average fill price and commission. There is no
+   P&L column, so we pair the fills ourselves: every exit fill is matched against
+   the oldest open entry (FIFO), and the dollars follow from the price move times
+   the contract's point value. Cancelled orders are ignored.
+   The result has the same shape as the Performance import, so scale-outs merge
+   and re-imports dedupe exactly the same way. */
+const POINT_VALUE = {
+  ES:50, MES:5, NQ:20, MNQ:2, YM:5, MYM:0.5, RTY:50, M2K:5, EMD:100,
+  CL:1000, MCL:100, QM:500, NG:10000, GC:100, MGC:10, SI:5000, SIL:1000, HG:25000, MHG:2500, PL:50,
+  ZB:1000, ZN:1000, ZF:1000, ZT:2000, UB:1000, '6E':125000, M6E:12500, '6B':62500, M6B:6250, '6J':12500000, '6A':100000, '6C':100000, '6S':125000,
+  ZC:50, ZS:50, ZW:50, ZL:600, ZM:100, BTC:5, MBT:0.1, ETH:50, MET:0.1
+};
+const TZ_ABBR = { UTC:0, GMT:0, CET:1, CEST:2, EET:2, EEST:3, BST:1, WET:0, WEST:1, EST:-5, EDT:-4, CST:-6, CDT:-5, MST:-7, MDT:-6, PST:-8, PDT:-7 };
+
+function detectOrdersFormat(headers){
+  const h = headers.map(normalizeHeader);
+  const need = ['time','symbol','qty','side','avgprice','status'];
+  return need.every(k => h.includes(k)) && !h.includes('pnl') && !h.includes('boughttimestamp');
+}
+function pointValueFor(symbol){
+  let s = String(symbol||'').toUpperCase().trim();
+  s = s.replace(/^[A-Z]+:/, '');            // "CME:MES" -> "MES"
+  s = s.replace(/\d+!$/, '');               // "MES1!"   -> "MES"
+  if(POINT_VALUE[s] !== undefined) return { root:s, pv:POINT_VALUE[s] };
+  const m = s.match(/^([A-Z0-9]{1,4}?)[FGHJKMNQUVXZ]\d{1,2}$/);   // "MESZ6" -> "MES"
+  if(m && POINT_VALUE[m[1]] !== undefined) return { root:m[1], pv:POINT_VALUE[m[1]] };
+  return { root:s, pv:null };
+}
+// "21-10-2026, 17:36:30 CEST": a zone name in the file beats the picker.
+function parseOrderTime(str, offsetHours, dayFirst){
+  const m = String(str||'').trim().match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?\s*([A-Za-z]{2,5})?/i);
+  if(!m) return null;
+  let a=+m[1], b=+m[2]; const y=+m[3]; let h=+m[4]; const mi=+m[5], se=+(m[6]||0);
+  const ap=(m[7]||'').toUpperCase(); if(ap==='PM' && h<12) h+=12; if(ap==='AM' && h===12) h=0;
+  const d = dayFirst ? a : b, mo = dayFirst ? b : a;
+  const zone = (m[8]||'').toUpperCase();
+  const off = zone && TZ_ABBR[zone] !== undefined ? TZ_ABBR[zone] : offsetHours;
+  return new Date(Date.UTC(y, mo-1, d, h, mi, se) - off*3600*1000);
+}
+function buildTradesFromOrders(dataRows, headers, offsetHours){
+  const idx = {}; headers.forEach((h,i)=>{ idx[normalizeHeader(h)] = i; });
+  const col = (cells,k)=> idx[k] !== undefined ? cells[idx[k]] : undefined;
+  // d-m or m-d? Decided from the whole file: a first number above 12 can only be a day.
+  let sawFirstOver12=false, sawSecondOver12=false;
+  dataRows.forEach(c=>{ const m = String(col(c,'time')||'').match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.]\d{4}/); if(m){ if(+m[1]>12) sawFirstOver12=true; if(+m[2]>12) sawSecondOver12=true; } });
+  const dayFirst = !(sawSecondOver12 && !sawFirstOver12);
+
+  const problems = [], fills = [];
+  let cancelled = 0;
+  dataRows.forEach((cells, i)=>{
+    const status = String(col(cells,'status')||'').trim().toLowerCase();
+    const price = parseNum(col(cells,'avgprice'));
+    if(!status.startsWith('filled')){ cancelled++; return; }
+    const qty = parseNum(col(cells,'qty'));
+    const side = String(col(cells,'side')||'').trim().toLowerCase();
+    const t = parseOrderTime(col(cells,'time'), offsetHours, dayFirst);
+    const symbol = String(col(cells,'symbol')||'').trim();
+    if(!symbol || !qty || price===null || !t || (side!=='buy' && side!=='sell')){
+      problems.push(`Rij ${i+2}: onvolledige order (tijd, richting, aantal of prijs ontbreekt)`); return;
+    }
+    fills.push({ row:i, t, symbol, buy: side==='buy', qty, price, comm: Math.abs(parseMoney(col(cells,'commission'))||0), timeText:String(col(cells,'time')).trim() });
+  });
+
+  // Oldest first. The export lists newest first, so reverse the file order before a stable sort.
+  fills.reverse(); fills.sort((a,b)=> a.t - b.t);
+
+  const bySymbol = new Map();
+  fills.forEach(f=>{ if(!bySymbol.has(f.symbol)) bySymbol.set(f.symbol, []); bySymbol.get(f.symbol).push(f); });
+  const trades = []; const seen = new Map(); let stillOpen = 0;
+  bySymbol.forEach((list, symbol)=>{
+    const { root, pv } = pointValueFor(symbol);
+    if(pv === null){ problems.push(`Onbekend contract “${symbol}”: ik ken de waarde per punt niet, dus ${list.length} order(s) zijn overgeslagen.`); return; }
+    const short = symbol.replace(/^[A-Za-z]+:/, '');
+    const lots = [];                                   // open entries, oldest first
+    list.forEach(f=>{
+      let left = f.qty;
+      while(left > 1e-9 && lots.length && lots[0].buy !== f.buy){
+        const lot = lots[0], m = Math.min(left, lot.left);
+        const isLong = lot.buy;
+        const gross = (isLong ? f.price - lot.price : lot.price - f.price) * m * pv;
+        const commission = lot.commPer * m + (f.comm * m / f.qty);
+        trades.push({
+          external_id: lot.id, _entryId: lot.id,
+          symbol: short, direction: isLong ? 'long' : 'short', volume: m,
+          open_time: lot.t.toISOString(), close_time: f.t.toISOString(),
+          open_price: lot.price, close_price: f.price,
+          gross_pnl: Math.round(gross*100)/100, commission: -Math.round(commission*100)/100, swap: 0,
+          net_pnl: Math.round((gross - commission)*100)/100,
+        });
+        lot.left -= m; left -= m;
+        if(lot.left <= 1e-9) lots.shift();
+      }
+      if(left > 1e-9){
+        // Opens (or adds to) a position. The id is built from the fill itself, so it is the same on every re-import.
+        const key = `${f.timeText}|${short}|${f.buy?'B':'S'}|${f.qty}|${f.price}`;
+        const n = (seen.get(key)||0) + 1; seen.set(key, n);
+        let h = 0; const s = key + '#' + n; for(let k=0;k<s.length;k++){ h = ((h<<5)-h + s.charCodeAt(k))|0; }
+        lots.push({ buy:f.buy, left, price:f.price, t:f.t, commPer: f.comm / f.qty, id:'pos:ord' + (h>>>0).toString(36) });
+      }
+    });
+    if(lots.length) stillOpen += lots.reduce((a,l)=>a+l.left,0);
+  });
+  if(stillOpen) problems.push(`${stillOpen} contract${stillOpen===1?'':'en'} staan nog open (geen afsluitende order in dit bestand) — die worden pas meegenomen als ze gesloten zijn.`);
+  trades.sort((a,b)=> new Date(a.open_time) - new Date(b.open_time));
+  return { trades, problems, cancelled };
 }
 
 /* ---------- Scale-outs: one position, several exit rows ----------
@@ -3070,7 +3181,7 @@ function combineCluster(cluster){
   };
 }
 /* ---------- CSV import: UI flow ---------- */
-let csvState = { headers:[], rows:[], map:null, fileName:'' };
+let csvState = { headers:[], rows:[], map:null, fileName:'', kind:'perf' };
 
 /* ---------- CSV import: choosing the target account ----------
    Matching on a typed name meant one stray character silently created a second
@@ -3164,6 +3275,7 @@ function handleCsvFile(file){
     csvState.headers = rows[0].map(h=>String(h).trim());
     csvState.rows = rows.slice(1);
     csvState.map = autoDetectMapping(csvState.headers);
+    csvState.kind = detectOrdersFormat(csvState.headers) ? 'orders' : 'perf';
     csvState.fileName = file.name;
     document.getElementById('csvHint').textContent = `${file.name} — ${csvState.rows.length} rijen gelezen`;
     renderCsvMapping();
@@ -3175,6 +3287,12 @@ function handleCsvFile(file){
 function renderCsvMapping(){
   const el = document.getElementById('csvMapping');
   if(!el) return;
+  if(csvState.kind === 'orders'){
+    el.style.display = 'block';
+    el.innerHTML = `<div class="sec-label"><span style="color:var(--text-ghost);">01</span> Orders-export herkend</div>
+      <div style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">Dit bestand bevat orders (Tradesea / Rithmic). Ik koppel de gevulde orders zelf aan elkaar tot trades en reken de dollars uit met de waarde per punt van het contract. Geannuleerde orders worden genegeerd. De tijdzone wordt uit het bestand gelezen (bv. CEST); de tijdzone-keuze hierboven geldt alleen als er geen zone in staat.</div>`;
+    return;
+  }
   const missing = CSV_FIELDS.filter(f=>f.needed && csvState.map[f.key] < 0);
   const options = (sel)=> '<option value="-1">— niet aanwezig —</option>' +
     csvState.headers.map((h,i)=>`<option value="${i}"${i===sel?' selected':''}>${h}</option>`).join('');
@@ -3210,7 +3328,7 @@ function renderCsvPreview(){
   el.style.display = 'block';
 
   if(trades.length === 0){
-    el.innerHTML = `<div class="be-warn">Geen bruikbare trades gevonden. Controleer of je het juiste tabblad exporteerde (Performance, niet Orders) en of de kolommen hierboven kloppen.</div>`;
+    el.innerHTML = `<div class="be-warn">Geen bruikbare trades gevonden. Controleer of je het juiste bestand exporteerde (Tradovate: Performance · Tradesea: Orders) en of de kolommen hierboven kloppen.</div>`;
     return;
   }
   const sample = trades.slice(0,5);
