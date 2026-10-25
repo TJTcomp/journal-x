@@ -612,6 +612,10 @@
     background:transparent !important; box-shadow:none !important; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; color:var(--be) !important; padding:8px 4px; -moz-appearance:textfield;}
   .bt-stepper input::-webkit-outer-spin-button, .bt-stepper input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   .bt-stepper .u{display:flex; align-items:center; padding:0 10px 0 8px; font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;}
+  .bt-viewbar{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; margin:16px 0 4px;}
+  .bt-view-l{font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); font-weight:600;}
+  .bt-view-n{font-size:11.5px; color:var(--text-faint);}
+  .bt-beunits{margin:2px 0 10px; align-items:center;}
   .bt-be-note{margin-top:11px; font-size:11.5px; color:var(--text-faint); line-height:1.55;}
   .bt-be-note b{color:var(--be); font-weight:600;}
 
@@ -1018,15 +1022,15 @@ notitie    alle overige woorden</pre>
                 <div class="chip" data-val="mdy">MM/DD/JJJJ</div>
               </div>
             </div>
-            <div class="bt-opt" id="btUnitWrap">
-              <div class="bt-opt-l">Resultaat uitdrukken in</div>
+            <div class="bt-opt" id="btUnitWrap" style="display:none;">
+              <div class="bt-opt-l">Getallen zonder eenheid zijn…</div>
               <div class="chips-row" id="btUnitPref">
                 <div class="chip selected" data-val="R">R-multiple</div>
                 <div class="chip" data-val="USD">Dollar ($)</div>
                 <div class="chip" data-val="PTS">Punten</div>
                 <div class="chip" data-val="PCT">Procent</div>
               </div>
-              <div style="font-size:11px; color:var(--text-faint); margin-top:6px;">Staan er meerdere kolommen in je data (bv. $ én R), dan gebruikt hij deze.</div>
+              <div style="font-size:11px; color:var(--text-faint); margin-top:6px;">Alleen nodig als je getallen zonder R, $ of % erachter plakt.</div>
             </div>
             <div class="bt-opt" id="btModeWrap">
               <div class="bt-opt-l">Bestaande trades in de sessie</div>
@@ -4972,7 +4976,9 @@ const BT_ALIASES = (function(){
   add('result','PTS', ['points','punten','pts','ticks']);
   add('result','PCT', ['return','pct','percent','percentage','%','resultpct','rendement']);
   add('result',null,  ['result','resultaat','uitkomst','outcome','wl','winloss','status']);
-  add('ignore',null,  ['rating','actions','action','grade','entry','entryprice','exit','exitprice','price','size','qty','quantity','contracts','lots','volume','sl','stoploss','stop','tp','takeprofit','target','risk','riskusd','balance','equity','duration','mae','mfe','id','nr','no','number','#','trade','tradeno','tradenr','commission','fees','fee','swap','slippage']);
+  add('ignore',null,  ['rating','actions','action','grade','price','size','qty','quantity','contracts','lots','volume','sl','stoploss','stop','tp','takeprofit','target','risk','riskusd','balance','equity','duration','mae','mfe','id','nr','no','number','#','trade','tradeno','tradenr','commission','fees','fee','swap','slippage']);
+  add('entryp',null,  ['entry','entryprice','openprice','entryp']);
+  add('exitp',null,   ['exit','exitprice','closeprice','exitp']);
   add('date',null,    ['date','datum','day','dag','opendate','entrydate','closedate','exitdate','time','tijd','datetime','opentime','entrytime','timestamp']);
   add('dir',null,     ['direction','richting','side','dir','type','position','positie','longshort','buysell']);
   add('symbol',null,  ['symbol','symbool','instrument','pair','ticker','asset','market','markt','product']);
@@ -5050,7 +5056,7 @@ function btParseRecord(line0, H, unitPref){
   if(!H){
     const toks = line.split(/[\s;|\t]+|,(?=\s)/).map(x=>x.replace(/,$/,'')).filter(Boolean);
     if(toks.length>=2 && toks.every(t=>btNumber(t))){
-      return { rows: toks.map(t=>{ const n = btNumber(t); return { date:null, dateRaw:null, time:null, symbol:'', dir:null, result:n.value, unit:n.unit, tag:'', note:'' }; }) };
+      return { rows: toks.map(t=>{ const n = btNumber(t); return { date:null, dateRaw:null, time:null, symbol:'', dir:null, result:n.value, unit:n.unit, m:{ [n.unit || unitPref]:n.value }, unitless:!n.unit, tag:'', note:'' }; }) };
     }
   }
 
@@ -5077,6 +5083,7 @@ function btParseRecord(line0, H, unitPref){
   // 4) classify
   const nums = [];            // { value, unit, col }
   let symbol='', dir=null, tag='', outcome=null; const notes = [];
+  let entryP=null, exitP=null; const m = {};      // m: the result in every unit we can read
   const takeWord = (w, role)=>{
     const k = w.toLowerCase();
     if(role!=='symbol' && role!=='tag' && role!=='note'){
@@ -5090,17 +5097,20 @@ function btParseRecord(line0, H, unitPref){
     const role = H && H.roles[idx] ? H.roles[idx] : null;
     if(role && role.role==='ignore') return;
     if(role && role.role==='date') return;
+    if(role && (role.role==='entryp' || role.role==='exitp')){ const pn = btNumber(cell); if(pn){ if(role.role==='entryp') entryP = pn.value; else exitP = pn.value; } return; }
     if(role && role.role==='symbol'){ symbol = symbol || cell; return; }
     if(role && role.role==='tag'){ tag = tag || cell; return; }
     if(role && role.role==='note'){ notes.push(cell); return; }
     if(role && role.role==='dir'){ const d = btDirLoose(cell); if(d) dir = dir || d; return; }
     const isResultCol = !!role && role.role==='result';
     if(isResultCol && idx!==H.resultCol){ // a second result column we don't use (other unit)
-      const n = btNumber(cell); if(!n){ const k = cell.toLowerCase(); if(k in BT_OUT_WORDS && outcome===null) outcome = BT_OUT_WORDS[k]; }
+      const n = btNumber(cell);
+      if(n){ const uu = n.unit || role.unit; if(uu && m[uu]===undefined) m[uu] = n.value; }
+      else { const k = cell.toLowerCase(); if(k in BT_OUT_WORDS && outcome===null) outcome = BT_OUT_WORDS[k]; }
       return;
     }
     const n = btNumber(cell);
-    if(n){ nums.push({ value:n.value, unit: n.unit || (isResultCol ? role.unit : null), col:idx, fromCol:isResultCol }); return; }
+    if(n){ const uu = n.unit || (isResultCol ? role.unit : null); if(isResultCol && uu && m[uu]===undefined) m[uu] = n.value; nums.push({ value:n.value, unit:uu, col:idx, fromCol:isResultCol }); return; }
     // a cell with several words: only pick out direction / outcome / symbol words; the rest is note
     const words = cell.split(/\s+/).filter(Boolean);
     if(words.length===1){
@@ -5139,6 +5149,7 @@ function btParseRecord(line0, H, unitPref){
       pick = pool[pool.length-1];
     }
   }
+  if(!pick){ const ks = Object.keys(m); if(ks.length){ const k = m[unitPref]!==undefined ? unitPref : ks[0]; pick = { value:m[k], unit:k }; } }
   let result = null, unit = null;
   if(pick){
     result = pick.value; unit = pick.unit;
@@ -5147,8 +5158,11 @@ function btParseRecord(line0, H, unitPref){
   } else if(outcome===0) result = 0;
   else return { error: outcome===null ? 'Geen resultaat (getal) gevonden' : 'Win/loss zonder getal' };
   if(!isFinite(result)) return { error:'Onleesbaar getal' };
+  const unitless = !unit;
+  m[unit || unitPref] = result;
+  if(m.PTS===undefined && entryP!=null && exitP!=null && dir) m.PTS = Math.round((dir==='long' ? exitP-entryP : entryP-exitP)*1e4)/1e4;
   // numbers left in a note must not leak (e.g. "5" from "5 min")
-  return { rows:[{ date:null, dateRaw, time, symbol, dir, result, unit, tag, note: notes.join(' ').replace(/(\d)(min|mins|minutes|minuten|sec|uur|hr)\b/gi,'$1 $2').trim() }] };
+  return { rows:[{ date:null, dateRaw, time, symbol, dir, result, unit, m, unitless, tag, note: notes.join(' ').replace(/(\d)(min|mins|minutes|minuten|sec|uur|hr)\b/gi,'$1 $2').trim() }] };
 }
 
 
@@ -5237,6 +5251,7 @@ function btParseDump(text, opts){
     out.mixedUnits = Object.keys(uc).length>1;
     out.unitCounts = uc;
   }
+  out.unitless = out.rows.filter(r=>r.unitless).length;
   return out;
 }
 
@@ -5257,7 +5272,7 @@ function btWeekday(date){ const [y,m,d] = date.split('-').map(Number); return ne
 function btGroupStats(items, be, beZero){
   let w=0,l=0,b=0,gp=0,gl=0,net=0;
   items.forEach(t=>{
-    const c = btCls(t.result, be);
+    const c = t.cls || btCls(t.result, be);
     const v = c==='be' && beZero ? 0 : t.result;
     net += v;
     if(c==='win'){ w++; gp += t.result; } else if(c==='loss'){ l++; gl += -t.result; } else b++;
@@ -5288,7 +5303,7 @@ function computeBacktest(trades, cfg){
   let peak=0, maxDD=0, ddStart=-1, longestDD=0, curDDLen=0, e=0;
   let streakW=0,streakL=0,maxW=0,maxL=0, lastKind=null, curStreak=0;
   list.forEach((t,i)=>{
-    const c = btCls(t.result, be); classes[i] = c;
+    const c = t.cls || btCls(t.result, be); classes[i] = c;
     const v = c==='be' && beZero ? 0 : t.result; vals[i] = v;
     e += v; eq[i] = e; net += v;
     if(c==='win'){ w++; gp += t.result; if(streakL){ streakL=0; } streakW++; if(streakW>maxW) maxW=streakW; }
@@ -5361,7 +5376,7 @@ function computeBacktest(trades, cfg){
     const bins = [];
     for(let i=0;i<nb;i++) bins.push({ lo: lo+i*step, hi: lo+(i+1)*step, count:0 });
     list.forEach(t=>{ let i = Math.floor((t.result-lo)/step + 1e-9); if(i>=nb) i = nb-1; if(i<0) i=0; bins[i].count++; });
-    bins.forEach(bn=>{ const c = (bn.lo+bn.hi)/2; bn.cls = (be>0 && bn.lo >= -be-1e-9 && bn.hi <= be+1e-9) ? 'be' : btCls(c, be); });
+    bins.forEach(bn=>{ const c = (bn.lo+bn.hi)/2; bn.cls = cfg.beSame===false ? btCls(c, 0) : ((be>0 && bn.lo >= -be-1e-9 && bn.hi <= be+1e-9) ? 'be' : btCls(c, be)); });
     S.bins = bins; S.binStep = step;
   } else S.bins = [];
   return S;
@@ -5454,15 +5469,16 @@ function btSign(v){ return v>0 ? 'pos' : v<0 ? 'neg' : 'neutral'; }
 
 /* ---------- data access ---------- */
 function btMapSession(r){
-  return { id:r.id, name:r.name||'Sessie', year:r.year==null ? null : Number(r.year), strategy:r.strategy||'', unit:r.unit||'R',
+  return { id:r.id, name:r.name||'Sessie', year:r.year==null ? null : Number(r.year), strategy:r.strategy||'', unit:r.unit||'R', nativeUnit:r.unit||'R', beUnit:r.be_unit||r.unit||'R',
            be:Number(r.be_threshold)||0, beZero:!!r.be_as_zero, startBalance:r.start_balance==null ? 10000 : Number(r.start_balance),
            riskPct:r.risk_pct==null ? 1 : Number(r.risk_pct), notes:r.notes||'', createdAt:r.created_at||'' };
 }
+const btn_ = v=> v==null ? null : Number(v);
 function btMapTrade(r){
   return { id:r.id, sessionId:r.session_id, seq:Number(r.seq)||0, date:r.trade_date ? String(r.trade_date).slice(0,10) : null,
-           time:r.trade_time||null, symbol:r.symbol||'', direction:r.direction||null, result:Number(r.result), tag:r.tag||'', note:r.note||'' };
+           time:r.trade_time||null, symbol:r.symbol||'', direction:r.direction||null, result:btn_(r.result), r:btn_(r.r_value), usd:btn_(r.usd_value), pts:btn_(r.pts_value), pct:btn_(r.pct_value), tag:r.tag||'', note:r.note||'' };
 }
-const BT_TRADE_COLS = 'id,session_id,seq,trade_date,trade_time,symbol,direction,result,tag,note';
+const BT_TRADE_COLS = 'id,session_id,seq,trade_date,trade_time,symbol,direction,result,r_value,usd_value,pts_value,pct_value,tag,note';
 function btSortedSessions(){
   return btSessions.slice().sort((a,b)=>{
     const ya = a.year==null ? 9999 : a.year, yb = b.year==null ? 9999 : b.year;
@@ -5474,8 +5490,61 @@ function btIndex(){
   if(!btIndexCache){ btIndexCache = new Map(); btTrades.forEach(t=>{ if(!btIndexCache.has(t.sessionId)) btIndexCache.set(t.sessionId, []); btIndexCache.get(t.sessionId).push(t); }); }
   return btIndexCache;
 }
-function btTradesOf(id){ return btIndex().get(id) || []; }
-function btStats(s){ return computeBacktest(btTradesOf(s.id), { be:s.be, beZero:s.beZero, unit:s.unit }); }
+const BT_UNITS = ['R','USD','PTS','PCT'];
+const BT_UNIT_CHIP = { R:'R', USD:'$', PTS:'Punten', PCT:'%' };
+const BT_COL = { R:'r_value', USD:'usd_value', PTS:'pts_value', PCT:'pct_value' };
+let btView = (function(){ try{ const v = localStorage.getItem('journalx.btView'); return BT_UNITS.indexOf(v)>=0 ? v : 'R'; }catch(e){ return 'R'; } })();
+const btViewCache = new Map();
+function btRawTradesOf(id){ return btIndex().get(id) || []; }
+/* Every trade can carry its result in several units (R, $, points, %). What you SEE is
+   chosen with the "Weergave" buttons; what counts as breakeven is decided in one unit
+   (the BE unit), so the same trades are breakeven whichever unit you look at. */
+function btMetric(t, s, u){
+  let v = null;
+  if(u==='R') v = t.r; else if(u==='USD') v = t.usd; else if(u==='PTS') v = t.pts; else v = t.pct;
+  if(v==null && u===s.nativeUnit && t.result!=null) v = t.result;
+  if(v==null && u==='PCT' && t.usd!=null && s.startBalance>0) v = t.usd / s.startBalance * 100;   // % of starting capital
+  return v;
+}
+function btAvail(s){
+  const raw = btRawTradesOf(s.id), out = {};
+  BT_UNITS.forEach(u=>{ const c = raw.reduce((a,t)=>a + (btMetric(t,s,u)!=null ? 1 : 0), 0); out[u] = raw.length>0 && c >= raw.length*0.5 ? c : 0; });
+  return out;
+}
+function btEffUnit(s){ const a = btAvail(s); if(a[btView]) return btView; for(let i=0;i<BT_UNITS.length;i++) if(a[BT_UNITS[i]]) return BT_UNITS[i]; return s.nativeUnit; }
+function btSyncUnits(){ btSessions.forEach(s=>{ s.unit = btEffUnit(s); }); }
+function btTradesOf(id){
+  const s = btSession(id), raw = btRawTradesOf(id);
+  if(!s) return raw;
+  const key = [s.unit, s.beUnit, s.be, s.startBalance, s.nativeUnit].join('|');
+  const hit = btViewCache.get(id);
+  if(hit && hit.key===key && hit.raw===raw) return hit.list;
+  const list = [];
+  raw.forEach(t=>{ const v = btMetric(t,s,s.unit); if(v==null) return; const bv = btMetric(t,s,s.beUnit); list.push({ ...t, result:v, cls: bv==null ? btCls(v,0) : btCls(bv, s.be) }); });
+  list.missing = raw.length - list.length;
+  btViewCache.set(id, { key, raw, list });
+  return list;
+}
+function btViewBar(s){
+  const avail = s ? btAvail(s) : null;
+  const any = u => s ? avail[u] : btSessions.some(x=>btAvail(x)[u]);
+  const chips = BT_UNITS.map(u=>{ const ok = !!any(u);
+    return `<div class="chip${(s ? s.unit : btView)===u ? ' selected' : ''}"${ok ? ` onclick="btSetView('${u}')"` : ' title="Geen data in deze eenheid" style="opacity:.35; cursor:not-allowed;"'}>${BT_UNIT_CHIP[u]}</div>`; }).join('');
+  const note = s && s.unit!==btView ? `<span class="bt-view-n">Deze sessie heeft geen ${BT_UNIT_CHIP[btView]}-waarden en toont daarom ${BT_UNIT_CHIP[s.unit]}.</span>` : '';
+  return `<div class="bt-viewbar"><span class="bt-view-l">Weergave</span><div class="chips-row">${chips}</div>${note}</div>`;
+}
+function btSetView(u){ btView = u; try{ localStorage.setItem('journalx.btView', u); }catch(e){} btSyncUnits(); btRenderAll(); }
+function btBeUnitChips(s){
+  const a = btAvail(s);
+  return `<div class="chips-row bt-beunits"><span class="bt-view-l">Drempel in</span>${BT_UNITS.filter(u=>a[u] || u===s.beUnit).map(u=>`<div class="chip${s.beUnit===u?' selected':''}" onclick="btSetBeUnit('${u}')">${BT_UNIT_CHIP[u]}</div>`).join('')}</div>`;
+}
+function btSetBeUnit(u){
+  const s = btSession(btSelected); if(!s || s.beUnit===u) return;
+  s.beUnit = u; s.be = 0;
+  btRenderHead(); btRenderBody();
+  btPersistSession(s, { be_unit:u, be_threshold:0 });
+}
+function btStats(s){ return computeBacktest(btTradesOf(s.id), { be:s.be, beZero:s.beZero, unit:s.unit, beSame:s.unit===s.beUnit }); }
 
 async function btLoad(){
   if(btLoading) return;
@@ -5518,10 +5587,11 @@ function renderBacktest(){
   btRenderAll();
 }
 function btRenderAll(){
+  btSyncUnits();
   const banner = $('#btBanner');
   if(btError){
     banner.style.display = 'block';
-    banner.innerHTML = `<strong>De Backtest-tabellen ontbreken nog.</strong> Draai <code>supabase_migration_backtest.sql</code> (of <code>supabase_migration_ALLES.sql</code>) in je Supabase SQL Editor en ververs daarna deze pagina. <span style="color:var(--text-faint);">(${escHtml(btError)})</span>`;
+    banner.innerHTML = `<strong>${/column|schema cache|r_value|be_unit/i.test(btError) ? 'De Backtest-database heeft een kleine update nodig.' : 'De Backtest-tabellen ontbreken nog.'}</strong> Draai <code>supabase_migration_backtest.sql</code> (of <code>supabase_migration_ALLES.sql</code>) in je Supabase SQL Editor en ververs daarna deze pagina. <span style="color:var(--text-faint);">(${escHtml(btError)})</span>`;
     $('#btSessions').innerHTML = ''; $('#btHead').innerHTML = ''; $('#btBody').innerHTML = ''; $('#btDrop').style.display = 'none';
     $('#btAddTradeBtn').style.display = 'none';
     return;
@@ -5545,27 +5615,30 @@ function btRenderSessions(){
   const list = btSortedSessions();
   $('#btSessions').innerHTML =
     `<div class="bt-chip${btSelected==='overview'?' active':''}" onclick="btSelect('overview')">Overzicht</div>` +
-    list.map(s=>`<div class="bt-chip${btSelected===s.id?' active':''}" onclick="btSelect('${s.id}')">${escHtml(s.name)}<span class="n">${btTradesOf(s.id).length}</span></div>`).join('') +
+    list.map(s=>`<div class="bt-chip${btSelected===s.id?' active':''}" onclick="btSelect('${s.id}')">${escHtml(s.name)}<span class="n">${btRawTradesOf(s.id).length}</span></div>`).join('') +
     `<div class="bt-chip add" onclick="btOpenSession()">+ Nieuwe sessie</div>`;
 }
 
 /* ---------- session header + breakeven control ---------- */
 function btRenderHead(){
+  btSyncUnits();
   const el = $('#btHead');
   if(btSelected==='overview'){ el.innerHTML = ''; return; }
   const s = btSession(btSelected); if(!s){ el.innerHTML=''; return; }
-  const U = s.unit;
+  const U = s.beUnit;
   const presets = BT_BE_PRESETS[U].map(v=>`<div class="chip${Math.abs(v-s.be)<1e-9?' selected':''}" data-tone="be" onclick="btBePreset(${v})">${v===0?'Uit':'±'+v}</div>`).join('');
   el.innerHTML = `<div class="panel bt-head">
     <div class="bt-head-top">
       <div style="min-width:0;">
-        <div class="bt-head-name">${escHtml(s.name)} ${s.year ? `<span class="tag">${s.year}</span>` : ''}<span class="tag">${BT_UNIT_LONG[U]}</span></div>
+        <div class="bt-head-name">${escHtml(s.name)} ${s.year ? `<span class="tag">${s.year}</span>` : ''}</div>
         <div class="bt-head-sub">${s.strategy ? escHtml(s.strategy) : 'Nog geen strategie-omschrijving — voeg er een toe via Instellingen.'}</div>
       </div>
       <button type="button" class="btn secondary small" onclick="btOpenSession('${s.id}')">Instellingen</button>
     </div>
+    ${btViewBar(s)}
     <div class="bt-be">
       <div class="bt-be-title">Breakeven-drempel</div>
+      ${btBeUnitChips(s)}
       <div class="bt-be-row">
         <div class="bt-stepper"><button type="button" onclick="btBeStep(-1)" aria-label="Lager">−</button><input type="number" id="btBeInput" step="any" min="0" value="${s.be}" oninput="btSetBe(this.value)"><span class="u">${BT_UNIT_SHORT[U]}</span><button type="button" onclick="btBeStep(1)" aria-label="Hoger">+</button></div>
         <div class="chips-row" id="btBePresets">${presets}</div>
@@ -5579,16 +5652,16 @@ function btRenderHead(){
 function btUpdateBeNote(){
   const note = $('#btBeNote'); const s = btSession(btSelected); if(!note || !s) return;
   const list = btTradesOf(s.id);
-  const inBe = list.filter(t=>Math.abs(t.result) <= s.be + 1e-12).length;
-  if(!list.length){ note.innerHTML = `Trades met een resultaat binnen ±<b>${btFmt(s.be,s.unit)}</b> tellen als breakeven en blijven buiten je winrate, profit factor en gemiddelden.`; return; }
+  const inBe = list.filter(t=>t.cls==='be').length;
+  if(!list.length){ note.innerHTML = `Trades met een resultaat binnen ±<b>${btFmt(s.be,s.beUnit)}</b> tellen als breakeven en blijven buiten je winrate, profit factor en gemiddelden.`; return; }
   if(s.be===0 && inBe===0){ note.innerHTML = `Drempel staat uit: alleen trades met exact 0 tellen als breakeven. Stel een drempel in om kleine winsten en verliezen als BE te laten tellen.`; return; }
-  note.innerHTML = `<b>${inBe}</b> van je ${list.length} trades (${(inBe/list.length*100).toFixed(1)}%) vallen binnen ±${btFmt(s.be,s.unit)} en tellen als breakeven — niet in winrate, profit factor of gemiddelde winst/verlies.${s.beZero ? ' Hun resultaat telt als 0.' : ''}`;
+  note.innerHTML = `<b>${inBe}</b> van je ${list.length} trades (${(inBe/list.length*100).toFixed(1)}%) vallen binnen ±${btFmt(s.be,s.beUnit)} en tellen als breakeven — niet in winrate, profit factor of gemiddelde winst/verlies.${s.beZero ? ' Hun resultaat telt als 0.' : ''}`;
 }
 function btSetBe(raw){
   const s = btSession(btSelected); if(!s) return;
   let v = parseFloat(String(raw).replace(',','.')); if(!isFinite(v) || v<0) v = 0;
   s.be = v;
-  document.querySelectorAll('#btBePresets .chip').forEach((c,i)=>c.classList.toggle('selected', Math.abs(BT_BE_PRESETS[s.unit][i]-v)<1e-9));
+  document.querySelectorAll('#btBePresets .chip').forEach((c,i)=>c.classList.toggle('selected', Math.abs(BT_BE_PRESETS[s.beUnit][i]-v)<1e-9));
   btUpdateBeNote();
   btDebounce('beBody', btRenderBody, 140);
   btDebounce('beSave', ()=>btPersistSession(s, { be_threshold:s.be }), 600);
@@ -5596,7 +5669,7 @@ function btSetBe(raw){
 function btBePreset(v){ const i = $('#btBeInput'); if(i) i.value = v; btSetBe(v); }
 function btBeStep(dir){
   const s = btSession(btSelected); if(!s) return;
-  const step = BT_BE_STEP[s.unit];
+  const step = BT_BE_STEP[s.beUnit];
   const v = Math.max(0, Math.round((s.be + dir*step)*1e6)/1e6);
   const i = $('#btBeInput'); if(i) i.value = v; btSetBe(v);
 }
@@ -5622,6 +5695,7 @@ function btRenderBody(){
   btDestroyCharts();
   if(btSelected==='overview'){ btRenderOverview(el); return; }
   const s = btSession(btSelected); if(!s){ el.innerHTML=''; return; }
+  btSyncUnits();
   const trades = btTradesOf(s.id);
   if(!trades.length){
     btCurrent = null;
@@ -5630,7 +5704,7 @@ function btRenderBody(){
       <button type="button" class="btn" onclick="btOpenDrop(true)">Open de Data drop</button></div>`;
     return;
   }
-  const S = computeBacktest(trades, { be:s.be, beZero:s.beZero, unit:s.unit });
+  const S = computeBacktest(trades, { be:s.be, beZero:s.beZero, unit:s.unit, beSame:s.unit===s.beUnit });
   btCurrent = { s, S };
   const U = s.unit;
   const MC = btGetMc(s, S);
@@ -5685,7 +5759,7 @@ function btRenderBody(){
   const mLab = S.months.length >= 2 ? 'Winstgevende maanden' : (S.perMonth!==null ? 'Trades per maand' : 'Spreiding (σ)');
   const mSub = S.months.length >= 2 ? `${(S.profitMonths/S.months.length*100).toFixed(0)}% van de maanden` : (S.perMonth!==null ? 'gemiddeld' : 'standaardafwijking');
   const row3 =
-    btTile('Breakeven-trades', S.b+'', 'neutral', `${bePct}% · drempel ±${btFmt(s.be,U)}`, 'Trades binnen je BE-drempel. Ze staan buiten winrate, profit factor en gemiddelden.') +
+    btTile('Breakeven-trades', S.b+'', 'neutral', `${bePct}% · drempel ±${btFmt(s.be,s.beUnit)}`, 'Trades binnen je BE-drempel. Ze staan buiten winrate, profit factor en gemiddelden.') +
     btTile('Benodigde winrate', S.needWinrate===null?'—':S.needWinrate.toFixed(1)+'%', 'neutral', S.winrate===null?'':`jij haalt ${S.winrate.toFixed(1)}%`, 'De winrate waarbij je bij jouw gemiddelde R:R precies break-even draait.') +
     btTile('SQN', S.sqn===null?'—':S.sqn.toFixed(2), S.sqn===null?'neutral':S.sqn>=2.5?'pos':S.sqn<1.6?'neg':'neutral', sqnTxt, 'System Quality Number (Van Tharp): gemiddelde ÷ spreiding × √trades (max 100). Boven 2.5 is goed.') +
     btTile('Kelly-criterium', kellyTxt, S.kelly>0?'accent':'neutral', S.kelly>0?'speel max de helft hiervan':'', 'Theoretisch optimale inzet per trade. In de praktijk gebruik je hooguit de helft.') +
@@ -5922,7 +5996,7 @@ function btRenderSim(s, S){
   const el = $('#btSimPanel'); if(!el) return;
   if(s.unit!=='R'){
     el.innerHTML = `<h2>Wat-als simulator</h2><div class="desc">Rekent je backtest om naar een account met een bepaald risico per trade.</div>
-      <div class="bt-note">Dit werkt voor sessies in <b>R</b> (risico-eenheden). Deze sessie staat in ${BT_UNIT_LONG[s.unit]} — zet de eenheid op R via Instellingen als je resultaten in R zijn.</div>`;
+      <div class="bt-note">Dit werkt voor sessies in <b>R</b> (risico-eenheden). Deze sessie staat in ${BT_UNIT_LONG[s.unit]} — zet de weergave hierboven op R om hem te gebruiken.</div>`;
     return;
   }
   el.innerHTML = `<h2>Wat-als simulator</h2>
@@ -5973,7 +6047,7 @@ function btInsightsInto(ul, s, S, MC){
   }
   if(S.b>0){
     const w0 = btGroupStats(S.list, 0, false).wr;
-    add('be', `<b>${S.b} trades (${(S.b/S.n*100).toFixed(0)}%)</b> zijn breakeven (binnen ±${btFmt(s.be,U)}) en tellen niet mee in je winrate.${w0!==null && s.be>0 ? ` Zonder die regel zou je winrate <b>${w0.toFixed(0)}%</b> zijn.` : ''}`);
+    add('be', `<b>${S.b} trades (${(S.b/S.n*100).toFixed(0)}%)</b> zijn breakeven (binnen ±${btFmt(s.be,s.beUnit)}) en tellen niet mee in je winrate.${w0!==null && s.be>0 ? ` Zonder die regel zou je winrate <b>${w0.toFixed(0)}%</b> zijn.` : ''}`);
   }
   const pick = (rows, nameFn, what)=>{
     const minN = Math.max(8, Math.round(S.n*0.06));
@@ -6066,7 +6140,7 @@ function btRenderOverview(el){
   } else if(withData.length){
     hero = `<div class="be-warn" style="margin-bottom:18px;">Je sessies gebruiken verschillende eenheden (${units.map(u=>BT_UNIT_LONG[u]).join(', ')}), dus ze kunnen niet bij elkaar opgeteld worden. Hieronder zie je ze wel naast elkaar.</div>`;
   }
-  el.innerHTML = hero + `<div class="section-head"><h3>Sessies vergeleken</h3><div class="rule"></div></div>
+  el.innerHTML = btViewBar(null) + hero + `<div class="section-head"><h3>Sessies vergeleken</h3><div class="rule"></div></div>
     <div class="panel"><div class="vault-scroll"><table class="bt-session-cmp bt-bartable"><thead><tr><th>Sessie</th><th>Trades</th><th>Winrate</th><th>PF</th><th>Verwachting</th><th>Netto</th><th>Max DD</th><th>BE</th></tr></thead><tbody>
     ${rows.map(({s,S,color})=>`<tr onclick="btSelect('${s.id}')">
       <td><span class="bt-dot" style="background:${color};"></span>${escHtml(s.name)}</td>
@@ -6104,7 +6178,7 @@ function btApplyDropOpen(){
   const el = $('#btDrop'); if(!el) return;
   let open = btDropOpen;
   if(open===null){
-    const empty = btSelected==='overview' ? btSessions.length===0 : btTradesOf(btSelected).length===0;
+    const empty = btSelected==='overview' ? btSessions.length===0 : btRawTradesOf(btSelected).length===0;
     open = empty || !!$('#btText').value.trim();
   }
   el.classList.toggle('open', !!open);
@@ -6124,7 +6198,6 @@ function btRenderTargetChips(){
     `<div class="chip${btDrop.target==='new'?' selected':''}" data-val="new">+ Nieuwe sessie</div>`;
   $('#btNewWrap').style.display = btDrop.target==='new' ? '' : 'none';
   $('#btModeWrap').style.display = btDrop.target==='new' ? 'none' : '';
-  { const uw = $('#btUnitWrap'); if(uw) uw.style.display = (btDrop.target==='auto' || btDrop.target==='new') ? '' : 'none'; }
 }
 function btTargetUnit(){ const s = btSession(btDrop.target); return s ? s.unit : (btDrop.unit || 'R'); }
 function btAnalyze(){
@@ -6136,12 +6209,19 @@ function btAnalyze(){
   btRenderPreview();
 }
 /* where does every row go? */
+function btPickNative(rows, pref){
+  const cnt = { R:0, USD:0, PTS:0, PCT:0 };
+  rows.forEach(r=>{ BT_UNITS.forEach(u=>{ if(r.m && r.m[u]!=null) cnt[u]++; }); });
+  const ok = u => cnt[u]>0 && cnt[u] >= rows.length*0.5;
+  for(let i=0;i<BT_UNITS.length;i++) if(ok(BT_UNITS[i])) return { unit:BT_UNITS[i], cnt };
+  return { unit:pref||'R', cnt };
+}
 function btMakePlan(p){
   const plan = { groups:[], errors:[], notes:[], dupTotal:0, rowTotal:0 };
   if(!p || !p.rows.length) return plan;
   const detected = p.detectedUnit, T = btDrop.target;
   const sorted = btSortedSessions();
-  const mk = (label, s, rows, newName, year)=>({ label, session:s||null, newName, year, rows, unit:s ? s.unit : (detected||'R'), unitChange:false });
+  const mk = (label, s, rows, newName, year)=>({ label, session:s||null, newName, year, rows, unit:s ? s.nativeUnit : btPickNative(rows, btDrop.unit).unit, unitChange:false });
   if(T==='auto'){
     const byYear = new Map(), undated = [];
     p.rows.forEach(r=>{ if(r.date){ const y = r.date.slice(0,4); if(!byYear.has(y)) byYear.set(y,[]); byYear.get(y).push(r); } else undated.push(r); });
@@ -6168,24 +6248,32 @@ function btMakePlan(p){
   plan.groups.forEach(g=>{
     plan.rowTotal += g.rows.length;
     const s = g.session; if(!s) return;
-    const existing = btTradesOf(s.id);
-    if(detected && detected!==s.unit){
-      if(existing.length && !(btDrop.mode==='replace')) plan.errors.push(`“${escHtml(s.name)}” staat in ${BT_UNIT_LONG[s.unit]}, maar je data lijkt in ${BT_UNIT_LONG[detected]}. Maak een nieuwe sessie, of kies “Alles vervangen”.`);
-      else { g.unitChange = true; g.unit = detected; plan.notes.push(`De eenheid van “${escHtml(s.name)}” wordt omgezet naar ${BT_UNIT_LONG[detected]}.`); }
+    const existing = btRawTradesOf(s.id);
+    {
+      const pk = btPickNative(g.rows, btDrop.unit);
+      if(!existing.length || btDrop.mode==='replace'){
+        if(pk.unit!==s.nativeUnit){ g.unitChange = true; g.unit = pk.unit; }
+      } else {
+        const have = BT_UNITS.filter(u=>btAvail(s)[u]);
+        const found = have.filter(u=>pk.cnt[u] >= g.rows.length*0.5);
+        if(have.length && !found.length) plan.errors.push(`“${escHtml(s.name)}” heeft ${have.map(u=>BT_UNIT_CHIP[u]).join(', ')}-waarden, maar je nieuwe data heeft die niet. Maak een nieuwe sessie, of kies “Alles vervangen”.`);
+        else if(have.length>found.length) plan.notes.push(`Je nieuwe data mist ${have.filter(u=>found.indexOf(u)<0).map(u=>BT_UNIT_CHIP[u]).join(', ')}-waarden; in die weergave tellen deze trades niet mee.`);
+      }
     }
     if(btDrop.mode==='append' && existing.length){
       const cnt = new Map(); existing.forEach(t=>{ const k = btRowKey(t.date,t.time,t.symbol,t.direction,t.result); cnt.set(k,(cnt.get(k)||0)+1); });
-      g.dupFlags = g.rows.map(r=>{ const k = btRowKey(r.date,r.time,r.symbol,r.dir,r.result); const c = cnt.get(k)||0; if(c>0){ cnt.set(k,c-1); return true; } return false; });
+      g.dupFlags = g.rows.map(r=>{ const k = btRowKey(r.date,r.time,r.symbol,r.dir,r.m ? r.m[s.nativeUnit] : r.result); const c = cnt.get(k)||0; if(c>0){ cnt.set(k,c-1); return true; } return false; });
       g.dupes = g.dupFlags.filter(Boolean).length; plan.dupTotal += g.dupes;
     }
   });
   return plan;
 }
-function btRowKey(date,time,symbol,dir,result){ return [date||'', time||'', String(symbol||'').toUpperCase(), dir||'', Number(result).toFixed(6)].join('|'); }
+function btRowKey(date,time,symbol,dir,result){ return [date||'', time||'', String(symbol||'').toUpperCase(), dir||'', result==null ? '' : Number(result).toFixed(6)].join('|'); }
 
 function btRenderPreview(){
   const box = $('#btPreview'), btn = $('#btImportBtn');
   const p = btDrop.parsed;
+  { const uw = $('#btUnitWrap'); if(uw) uw.style.display = (p && p.unitless>0 && (btDrop.target==='auto' || btDrop.target==='new')) ? '' : 'none'; }
   if(!p){ box.innerHTML = ''; btn.disabled = true; btn.textContent = 'Importeren'; $('#btSkipWrap').style.display = 'none'; return; }
   if(!p.rows.length){
     box.innerHTML = `<div class="bt-prev"><div class="bt-err" style="margin:0;">Geen trades herkend in deze tekst. ${p.skipped.length ? `${p.skipped.length} regel${p.skipped.length===1?'':'s'} overgeslagen — open “Welke formaten snapt hij?” voor voorbeelden.` : ''}</div>${btSkippedHtml(p)}</div>`;
@@ -6193,25 +6281,26 @@ function btRenderPreview(){
   }
   const plan = btMakePlan(p);
   const target = btSession(btDrop.target);
-  const U = (target && target.unit) || p.detectedUnit || 'R';
+  const pk = btPickNative(p.rows, btDrop.unit);
+  const U = target ? target.nativeUnit : pk.unit;
   // dupes: suggest skipping when most of the data is already there
   const skipWrap = $('#btSkipWrap');
   skipWrap.style.display = plan.dupTotal>0 ? '' : 'none';
   if(plan.dupTotal>0 && !btDrop.dupTouched) $('#btSkipDupes').checked = plan.dupTotal/plan.rowTotal >= 0.8;
   const skipDupes = plan.dupTotal>0 && $('#btSkipDupes').checked;
   const toImport = plan.rowTotal - (skipDupes ? plan.dupTotal : 0);
-  const stat = computeBacktest(p.rows.map((r,i)=>({ date:r.date, time:r.time, symbol:r.symbol, direction:r.dir, result:r.result, tag:r.tag, seq:i })), { be: target ? target.be : 0, beZero:false, unit:U });
+  const stat = computeBacktest(p.rows.filter(r=>!r.m || r.m[U]!=null).map((r,i)=>({ date:r.date, time:r.time, symbol:r.symbol, direction:r.dir, result:(r.m && r.m[U]!=null ? r.m[U] : r.result), tag:r.tag, seq:i })), { be: target ? target.be : 0, beZero:false, unit:U });
   const years = Object.keys(p.years).sort();
   const chips = [
     `<span class="tag win">✓ ${p.rows.length} trades herkend</span>`,
     p.skipped.length ? `<span class="tag be click" onclick="btShowSkipped()">⚠ ${p.skipped.length} regel${p.skipped.length===1?'':'s'} overgeslagen — bekijk</span>` : '',
-    `<span class="tag">Eenheid: ${BT_UNIT_LONG[p.detectedUnit||U]}${p.detectedUnit?' (herkend)':' (van sessie)'}</span>`,
+    `<span class="tag">Gevonden: ${BT_UNITS.filter(u=>pk.cnt[u]>=p.rows.length*0.5).map(u=>BT_UNIT_CHIP[u]).join(' · ')}${pk.cnt.USD>=p.rows.length*0.5 && !(pk.cnt.PCT>=p.rows.length*0.5) ? ' · % (netto ÷ startkapitaal)' : ''}</span>`,
     years.length ? `<span class="tag">${years.length===1?years[0]:years[0]+' – '+years[years.length-1]+' · '+years.length+' jaren'}</span>` : `<span class="tag">zonder datums</span>`,
     p.rows.some(r=>r.date) && p.dateFmt ? `<span class="tag">Datums: ${p.dateFmt==='mdy'?'MM/DD':'DD/MM'}</span>` : '',
     p.stacked ? `<span class="tag">kolommen onder elkaar herkend</span>` : '',
     p.header ? `<span class="tag">kopregel herkend</span>` : '',
     p.badDates ? `<span class="tag loss">${p.badDates} onleesbare datum${p.badDates===1?'':'s'}</span>` : '',
-    p.mixedUnits ? `<span class="tag be">meerdere eenheden in de data</span>` : '',
+
   ].filter(Boolean).join('');
   const mini = `<div class="bt-mini">
       <div><div class="l">Trades</div><div class="v">${stat.n}</div></div>
@@ -6222,9 +6311,10 @@ function btRenderPreview(){
   const planHtml = `<div class="bt-plan">${plan.groups.map(g=>`<div class="row">→ <b>${escHtml(g.session ? g.session.name : g.newName)}</b><span>${g.rows.length} trades</span>
       <span class="tag ${g.session?'':'win'}">${g.session?'bestaande sessie':'nieuwe sessie'}</span>${g.dupes?`<span class="tag be">${g.dupes} al aanwezig</span>`:''}</div>`).join('')}
       ${plan.notes.map(n=>`<div style="color:var(--text-faint); font-size:11.5px;">${n}</div>`).join('')}</div>`;
+  const pv = r => (r.m && r.m[U]!=null) ? r.m[U] : null;
   const sample = `<div class="vault-scroll"><table><thead><tr><th>Datum</th><th>Tijd</th><th>Symbool</th><th>Richting</th><th>Resultaat</th><th>Tag</th><th>Notitie</th></tr></thead><tbody>
     ${p.rows.slice(0,6).map(r=>`<tr><td>${r.date?fmtDay(r.date):'—'}</td><td>${r.time||'—'}</td><td>${escHtml(r.symbol)||'—'}</td><td>${r.dir==='long'?'Long':r.dir==='short'?'Short':'—'}</td>
-      <td class="${r.result>0?'pos-txt':r.result<0?'neg-txt':''}">${btFmt(r.result,U,true)}</td><td>${escHtml(r.tag)||''}</td><td style="font-family:'Inter',sans-serif; color:var(--text-dim);">${escHtml(r.note)}</td></tr>`).join('')}
+      <td class="${pv(r)>0?'pos-txt':pv(r)<0?'neg-txt':''}">${btFmt(pv(r),U,true)}</td><td>${escHtml(r.tag)||''}</td><td style="font-family:'Inter',sans-serif; color:var(--text-dim);">${escHtml(r.note)}</td></tr>`).join('')}
     ${p.rows.length>6?`<tr><td colspan="7" style="text-align:center; color:var(--text-faint); font-family:'Inter',sans-serif;">… en nog ${p.rows.length-6} trades</td></tr>`:''}</tbody></table></div>`;
   box.innerHTML = `<div class="bt-prev"><div class="bt-prev-chips">${chips}</div>
     ${plan.errors.map(e=>`<div class="bt-err">${e}</div>`).join('')}
@@ -6251,7 +6341,7 @@ async function btImport(){
   if(plan.errors.length || !plan.groups.length) return;
   const skipDupes = plan.dupTotal>0 && $('#btSkipDupes').checked;
   if(btDrop.mode==='replace' && btDrop.target!=='new'){
-    const doomed = plan.groups.reduce((a,g)=>a + (g.session ? btTradesOf(g.session.id).length : 0), 0);
+    const doomed = plan.groups.reduce((a,g)=>a + (g.session ? btRawTradesOf(g.session.id).length : 0), 0);
     if(doomed>0 && !confirm(`Je vervangt ${doomed} bestaande trade${doomed===1?'':'s'} door de nieuwe data. Doorgaan?`)) return;
   }
   btDrop.importing = true; btRenderPreview();
@@ -6260,23 +6350,23 @@ async function btImport(){
     for(const g of plan.groups){
       let s = g.session;
       if(!s){
-        const row = { name:g.newName, year:g.year, unit:g.unit, be_threshold:0 };
+        const row = { name:g.newName, year:g.year, unit:g.unit, be_unit:g.unit, be_threshold:0 };
         const { data, error } = await supabase.from('backtest_sessions').insert(row).select().single();
         if(error) throw error;
         s = btMapSession(data); btSessions.push(s); createdCount++;
       } else if(g.unitChange){
-        const { error } = await supabase.from('backtest_sessions').update({ unit:g.unit }).eq('id', s.id);
-        if(error) throw error; s.unit = g.unit;
+        const { error } = await supabase.from('backtest_sessions').update({ unit:g.unit, be_unit:g.unit, be_threshold:0 }).eq('id', s.id);
+        if(error) throw error; s.unit = g.unit; s.nativeUnit = g.unit; s.beUnit = g.unit; s.be = 0;
       }
-      if(btDrop.mode==='replace' && btDrop.target!=='new' && btTradesOf(s.id).length){
+      if(btDrop.mode==='replace' && btDrop.target!=='new' && btRawTradesOf(s.id).length){
         const { error } = await supabase.from('backtest_trades').delete().eq('session_id', s.id);
         if(error) throw error;
         btTrades = btTrades.filter(t=>t.sessionId!==s.id); btIndexCache = null;
       }
       let rows = g.rows;
       if(skipDupes && g.dupFlags) rows = rows.filter((r,i)=>!g.dupFlags[i]);
-      const start = btTradesOf(s.id).reduce((m,t)=>Math.max(m,t.seq),0) + 1;
-      const payload = rows.map((r,i)=>({ session_id:s.id, seq:start+i, trade_date:r.date||null, trade_time:r.time||null, symbol:r.symbol||null, direction:r.dir||null, result:r.result, tag:r.tag||null, note:r.note||null }));
+      const start = btRawTradesOf(s.id).reduce((m,t)=>Math.max(m,t.seq),0) + 1;
+      const payload = rows.map((r,i)=>({ session_id:s.id, seq:start+i, trade_date:r.date||null, trade_time:r.time||null, symbol:r.symbol||null, direction:r.dir||null, result:(r.m && r.m[s.nativeUnit]!=null ? r.m[s.nativeUnit] : null), r_value:(r.m && r.m.R!=null ? r.m.R : null), usd_value:(r.m && r.m.USD!=null ? r.m.USD : null), pts_value:(r.m && r.m.PTS!=null ? r.m.PTS : null), pct_value:(r.m && r.m.PCT!=null ? r.m.PCT : null), tag:r.tag||null, note:r.note||null }));
       for(let i=0;i<payload.length;i+=500){
         const { data, error } = await supabase.from('backtest_trades').insert(payload.slice(i,i+500)).select(BT_TRADE_COLS);
         if(error) throw error;
@@ -6304,11 +6394,11 @@ function btRenderUnitChips(){
   $('#btsUnit').innerHTML = Object.keys(BT_UNIT_LONG).map(k=>`<div class="chip${btsState.unit===k?' selected':''}" data-val="${k}">${BT_UNIT_LONG[k]}</div>`).join('');
   $('#btsUnit').querySelectorAll('.chip').forEach(c=>c.addEventListener('click', ()=>{ btsState.unit = c.dataset.val; btRenderUnitChips(); }));
   const s = btsState.id ? btSession(btsState.id) : null;
-  $('#btsUnitHint').textContent = s && btTradesOf(s.id).length && s.unit!==btsState.unit ? 'Let op: de bestaande getallen blijven staan en worden alleen anders gelabeld.' : '';
+  $('#btsUnitHint').textContent = s && btRawTradesOf(s.id).length && s.unit!==btsState.unit ? 'Let op: de bestaande getallen blijven staan en worden alleen anders gelabeld.' : '';
 }
 function btOpenSession(id){
   const s = id ? btSession(id) : null;
-  btsState.id = s ? s.id : null; btsState.unit = s ? s.unit : 'R';
+  btsState.id = s ? s.id : null; btsState.unit = s ? s.nativeUnit : 'R';
   $('#btsTitle').textContent = s ? 'Sessie-instellingen' : 'Nieuwe sessie';
   $('#btsName').value = s ? s.name : '';
   $('#btsYear').value = s && s.year ? s.year : (s ? '' : new Date().getFullYear()-1);
@@ -6321,6 +6411,7 @@ function btOpenSession(id){
   $('#btsClearBtn').style.display = s ? '' : 'none';
   $('#btsDeleteBtn').style.display = s ? '' : 'none';
   btRenderUnitChips();
+  { const g = $('#btsUnit'); const f = g && g.closest('.field'); if(f) f.style.display = s ? 'none' : ''; }
   if(!s && !$('#btsName').value) $('#btsName').value = $('#btsYear').value ? 'Backtest ' + $('#btsYear').value : '';
   $('#btSessModalBg').style.display = 'flex'; document.body.style.overflow = 'hidden';
   setTimeout(()=>{ const n = $('#btsName'); if(n) n.focus(); }, 30);
@@ -6340,7 +6431,7 @@ async function btSaveSessionModal(){
       const { error } = await supabase.from('backtest_sessions').update(row).eq('id', btsState.id);
       if(error) throw error;
       const i = btSessions.findIndex(x=>x.id===btsState.id);
-      if(i>=0) btSessions[i] = btMapSession({ ...row, id:btsState.id, created_at:btSessions[i].createdAt });
+      if(i>=0) btSessions[i] = btMapSession({ ...row, be_unit:btSessions[i].beUnit, id:btsState.id, created_at:btSessions[i].createdAt });
     } else {
       const { data, error } = await supabase.from('backtest_sessions').insert(row).select().single();
       if(error) throw error;
@@ -6353,7 +6444,7 @@ async function btSaveSessionModal(){
 }
 async function btClearSession(){
   const s = btSession(btsState.id); if(!s) return;
-  const n = btTradesOf(s.id).length;
+  const n = btRawTradesOf(s.id).length;
   if(!n){ showToast('Deze sessie heeft geen trades'); return; }
   if(!confirm(`Alle ${n} trades in “${s.name}” wissen? De sessie zelf blijft bestaan.`)) return;
   try{
@@ -6365,7 +6456,7 @@ async function btClearSession(){
 }
 async function btDeleteSession(){
   const s = btSession(btsState.id); if(!s) return;
-  const n = btTradesOf(s.id).length;
+  const n = btRawTradesOf(s.id).length;
   const typed = prompt(`Je verwijdert “${s.name}” en ${n} trade${n===1?'':'s'}. Typ de naam van de sessie om te bevestigen:`);
   if(typed===null) return;
   if(typed.trim() !== s.name){ showToast('Naam komt niet overeen — niets verwijderd'); return; }
@@ -6390,9 +6481,9 @@ function btOpenTrade(id){
   const t = id ? btTrades.find(x=>x.id===id) : null;
   bttState.id = t ? t.id : null; bttState.dir = t ? t.direction : null;
   $('#bttTitle').textContent = t ? 'Trade bewerken' : 'Nieuwe trade';
-  $('#bttResultLabel').textContent = `Resultaat (${BT_UNIT_LONG[s.unit].replace(/ \(.*/,'')})`;
+  $('#bttResultLabel').textContent = `Resultaat (${BT_UNIT_LONG[s.nativeUnit].replace(/ \(.*/,'')})`;
   $('#bttDate').value = t ? (t.date||'') : ''; $('#bttTime').value = t ? (t.time||'') : '';
-  $('#bttSymbol').value = t ? t.symbol : ''; $('#bttResult').value = t ? t.result : '';
+  $('#bttSymbol').value = t ? t.symbol : ''; $('#bttResult').value = t && t.result!=null ? t.result : '';
   $('#bttTag').value = t ? t.tag : ''; $('#bttNote').value = t ? t.note : '';
   $('#bttTags').innerHTML = [...new Set(btTrades.map(x=>x.tag).filter(Boolean))].map(x=>`<option value="${escHtml(x)}">`).join('');
   $('#bttDeleteBtn').style.display = t ? '' : 'none';
@@ -6408,15 +6499,16 @@ async function btSaveTrade(){
   if(time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)){ showToast('Tijd als HH:MM, bv. 14:30'); return; }
   const row = { trade_date:$('#bttDate').value || null, trade_time:time ? time.padStart(5,'0') : null, symbol:$('#bttSymbol').value.trim().toUpperCase() || null,
     direction:bttState.dir || null, result, tag:$('#bttTag').value.trim() || null, note:$('#bttNote').value.trim() || null };
+  row[BT_COL[s.nativeUnit]] = result;
   const b = $('#bttSaveBtn'); b.disabled = true; b.textContent = 'Opslaan…';
   try{
     if(bttState.id){
       const { error } = await supabase.from('backtest_trades').update(row).eq('id', bttState.id);
       if(error) throw error;
       const i = btTrades.findIndex(x=>x.id===bttState.id);
-      if(i>=0) btTrades[i] = btMapTrade({ ...row, id:bttState.id, session_id:s.id, seq:btTrades[i].seq });
+      if(i>=0) btTrades[i] = btMapTrade({ r_value:btTrades[i].r, usd_value:btTrades[i].usd, pts_value:btTrades[i].pts, pct_value:btTrades[i].pct, ...row, id:bttState.id, session_id:s.id, seq:btTrades[i].seq });
     } else {
-      const seq = btTradesOf(s.id).reduce((m,t)=>Math.max(m,t.seq),0) + 1;
+      const seq = btRawTradesOf(s.id).reduce((m,t)=>Math.max(m,t.seq),0) + 1;
       const { data, error } = await supabase.from('backtest_trades').insert({ ...row, session_id:s.id, seq }).select(BT_TRADE_COLS).single();
       if(error) throw error;
       btTrades.push(btMapTrade(data));
@@ -6546,6 +6638,7 @@ window.closeLightbox = closeLightbox;
 window.refreshNow = refreshNow;
 window.switchViewGlobal = switchView;
 window.btSelect = btSelect;
+window.btSetView = btSetView; window.btSetBeUnit = btSetBeUnit;
 window.btOpenSession = btOpenSession;
 window.btOpenTrade = btOpenTrade;
 window.btCloseModal = btCloseModal;
