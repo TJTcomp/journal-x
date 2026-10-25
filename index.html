@@ -5499,13 +5499,24 @@ function btRawTradesOf(id){ return btIndex().get(id) || []; }
 /* Every trade can carry its result in several units (R, $, points, %). What you SEE is
    chosen with the "Weergave" buttons; what counts as breakeven is decided in one unit
    (the BE unit), so the same trades are breakeven whichever unit you look at. */
-function btMetric(t, s, u){
+function btDirect(t, s, u){
   let v = null;
   if(u==='R') v = t.r; else if(u==='USD') v = t.usd; else if(u==='PTS') v = t.pts; else v = t.pct;
   if(v==null && u===s.nativeUnit && t.result!=null) v = t.result;
-  if(v==null && u==='PCT' && t.usd!=null && s.startBalance>0) v = t.usd / s.startBalance * 100;   // % of starting capital
   return v;
 }
+function btMetric(t, s, u){
+  let v = btDirect(t, s, u);
+  if(v!=null) return v;
+  /* Convert between R, $ and % through the risk per trade and the starting capital. */
+  const sb = s.startBalance, rp = s.riskPct, risk$ = sb>0 && rp>0 ? sb*rp/100 : 0;
+  const r = btDirect(t,s,'R'), usd = btDirect(t,s,'USD'), pct = btDirect(t,s,'PCT');
+  if(u==='PCT'){ if(usd!=null && sb>0) return usd/sb*100; if(r!=null && rp>0) return r*rp; }
+  else if(u==='USD'){ if(r!=null && risk$>0) return r*risk$; if(pct!=null && sb>0) return pct/100*sb; }
+  else if(u==='R'){ if(usd!=null && risk$>0) return usd/risk$; if(pct!=null && rp>0) return pct/rp; }
+  return null;
+}
+function btIsDerived(s, u){ const raw = btRawTradesOf(s.id); return raw.length>0 && raw.some(t=>btMetric(t,s,u)!=null) && !raw.some(t=>btDirect(t,s,u)!=null); }
 function btAvail(s){
   const raw = btRawTradesOf(s.id), out = {};
   BT_UNITS.forEach(u=>{ const c = raw.reduce((a,t)=>a + (btMetric(t,s,u)!=null ? 1 : 0), 0); out[u] = raw.length>0 && c >= raw.length*0.5 ? c : 0; });
@@ -5531,7 +5542,8 @@ function btViewBar(s){
   const chips = BT_UNITS.map(u=>{ const ok = !!any(u);
     return `<div class="chip${(s ? s.unit : btView)===u ? ' selected' : ''}"${ok ? ` onclick="btSetView('${u}')"` : ' title="Geen data in deze eenheid" style="opacity:.35; cursor:not-allowed;"'}>${BT_UNIT_CHIP[u]}</div>`; }).join('');
   const note = s && s.unit!==btView ? `<span class="bt-view-n">Deze sessie heeft geen ${BT_UNIT_CHIP[btView]}-waarden en toont daarom ${BT_UNIT_CHIP[s.unit]}.</span>` : '';
-  return `<div class="bt-viewbar"><span class="bt-view-l">Weergave</span><div class="chips-row">${chips}</div>${note}</div>`;
+  const der = s && s.unit!=='PTS' && btIsDerived(s, s.unit) ? `<span class="bt-view-n">${BT_UNIT_CHIP[s.unit]} is omgerekend met ${fmtNumTrim(s.riskPct)}% risico per trade en startkapitaal ${btFmt(s.startBalance,'USD')} (aanpasbaar in Instellingen).</span>` : '';
+  return `<div class="bt-viewbar"><span class="bt-view-l">Weergave</span><div class="chips-row">${chips}</div>${note}${der}</div>`;
 }
 function btSetView(u){ btView = u; try{ localStorage.setItem('journalx.btView', u); }catch(e){} btSyncUnits(); btRenderAll(); }
 function btBeUnitChips(s){
