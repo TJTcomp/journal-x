@@ -6298,7 +6298,8 @@ function btRenderPreview(){
   // dupes: suggest skipping when most of the data is already there
   const skipWrap = $('#btSkipWrap');
   skipWrap.style.display = plan.dupTotal>0 ? '' : 'none';
-  if(plan.dupTotal>0 && !btDrop.dupTouched) $('#btSkipDupes').checked = plan.dupTotal/plan.rowTotal >= 0.8;
+  if(plan.dupTotal>0 && !btDrop.dupTouched) $('#btSkipDupes').checked = true;   // already-present trades are skipped by default
+  { const lb = document.querySelector('label[for="btSkipDupes"]'); if(lb) lb.textContent = plan.dupTotal>0 ? `Al aanwezige trades overslaan (${plan.dupTotal} gevonden)` : 'Al aanwezige trades overslaan'; }
   const skipDupes = plan.dupTotal>0 && $('#btSkipDupes').checked;
   const toImport = plan.rowTotal - (skipDupes ? plan.dupTotal : 0);
   const stat = computeBacktest(p.rows.filter(r=>!r.m || r.m[U]!=null).map((r,i)=>({ date:r.date, time:r.time, symbol:r.symbol, direction:r.dir, result:(r.m && r.m[U]!=null ? r.m[U] : r.result), tag:r.tag, seq:i })), { be: target ? target.be : 0, beZero:false, unit:U });
