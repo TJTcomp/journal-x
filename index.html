@@ -976,6 +976,7 @@
     <div class="view-body">
       <div id="btBanner" class="be-warn" style="display:none; margin-bottom:16px;"></div>
       <div id="btSessions" class="bt-sessions"></div>
+      <div id="btMergeBar"></div>
       <div id="btHead"></div>
 
       <div class="panel bt-drop" id="btDrop" style="display:none;">
@@ -1046,6 +1047,7 @@ notitie    alle overige woorden</pre>
             <div class="bt-opt">
               <div class="bt-opt-l">Opties</div>
               <div class="chips-row">
+                <span class="checkfield"><input type="checkbox" id="btMerge" checked><label for="btMerge" title="Zelfde dag, zelfde entry-minuut, zelfde symbool en richting = 1 trade (bv. meerdere take profits)">Meerdere exits van dezelfde entry = 1 trade</label></span>
                 <span class="checkfield"><input type="checkbox" id="btReverse"><label for="btReverse">Volgorde omdraaien</label></span>
                 <span class="checkfield" id="btSkipWrap" style="display:none;"><input type="checkbox" id="btSkipDupes"><label for="btSkipDupes">Al aanwezige trades overslaan</label></span>
               </div>
@@ -4976,7 +4978,8 @@ const BT_ALIASES = (function(){
   add('result','PTS', ['points','punten','pts','ticks']);
   add('result','PCT', ['return','pct','percent','percentage','%','resultpct','rendement']);
   add('result',null,  ['result','resultaat','uitkomst','outcome','wl','winloss','status']);
-  add('ignore',null,  ['rating','actions','action','grade','price','size','qty','quantity','contracts','lots','volume','sl','stoploss','stop','tp','takeprofit','target','risk','riskusd','balance','equity','duration','mae','mfe','id','nr','no','number','#','trade','tradeno','tradenr','commission','fees','fee','swap','slippage']);
+  add('ignore',null,  ['rating','actions','action','grade','price','sl','stoploss','stop','tp','takeprofit','target','risk','riskusd','balance','equity','duration','mae','mfe','id','nr','no','number','#','trade','tradeno','tradenr','commission','fees','fee','swap','slippage']);
+  add('qty',null,     ['size','qty','quantity','contracts','lots','volume','contractsize','filledqty']);
   add('entryp',null,  ['entry','entryprice','openprice','entryp']);
   add('exitp',null,   ['exit','exitprice','closeprice','exitp']);
   add('date',null,    ['date','datum','day','dag','opendate','entrydate','closedate','exitdate','time','tijd','datetime','opentime','entrytime','timestamp']);
@@ -5083,7 +5086,7 @@ function btParseRecord(line0, H, unitPref){
   // 4) classify
   const nums = [];            // { value, unit, col }
   let symbol='', dir=null, tag='', outcome=null; const notes = [];
-  let entryP=null, exitP=null; const m = {};      // m: the result in every unit we can read
+  let entryP=null, exitP=null, qty=null; const m = {};      // m: the result in every unit we can read
   const takeWord = (w, role)=>{
     const k = w.toLowerCase();
     if(role!=='symbol' && role!=='tag' && role!=='note'){
@@ -5097,6 +5100,7 @@ function btParseRecord(line0, H, unitPref){
     const role = H && H.roles[idx] ? H.roles[idx] : null;
     if(role && role.role==='ignore') return;
     if(role && role.role==='date') return;
+    if(role && role.role==='qty'){ const qn = btNumber(cell); if(qn && qn.value>0) qty = Math.abs(qn.value); return; }
     if(role && (role.role==='entryp' || role.role==='exitp')){ const pn = btNumber(cell); if(pn){ if(role.role==='entryp') entryP = pn.value; else exitP = pn.value; } return; }
     if(role && role.role==='symbol'){ symbol = symbol || cell; return; }
     if(role && role.role==='tag'){ tag = tag || cell; return; }
@@ -5162,7 +5166,7 @@ function btParseRecord(line0, H, unitPref){
   m[unit || unitPref] = result;
   if(m.PTS===undefined && entryP!=null && exitP!=null && dir) m.PTS = Math.round((dir==='long' ? exitP-entryP : entryP-exitP)*1e4)/1e4;
   // numbers left in a note must not leak (e.g. "5" from "5 min")
-  return { rows:[{ date:null, dateRaw, time, symbol, dir, result, unit, m, unitless, tag, note: notes.join(' ').replace(/(\d)(min|mins|minutes|minuten|sec|uur|hr)\b/gi,'$1 $2').trim() }] };
+  return { rows:[{ date:null, dateRaw, time, symbol, dir, result, unit, m, unitless, qty, tag, note: notes.join(' ').replace(/(\d)(min|mins|minutes|minuten|sec|uur|hr)\b/gi,'$1 $2').trim() }] };
 }
 
 
@@ -5203,6 +5207,81 @@ function btUnstack(lines){
   return [useHead.join('\t')].concat(rows.map(r=>r.join('\t')));
 }
 
+
+/* ============================================================
+   SCALE-OUTS: one position closed in several pieces (several take profits)
+   shows up as several rows. Rows with the same day, the same entry minute, the same
+   symbol and the same direction are ONE trade, so winrate and profit factor count it once.
+   ============================================================ */
+function btMergeKey(r){
+  const dir = r.dir || r.direction;
+  if(!r.date || !r.time || !dir) return null;
+  return [r.date, r.time, String(r.symbol||'').toUpperCase(), dir].join('|');
+}
+/* parts: [{ m:{R,USD,PTS,PCT}, qty }] -> { m, approx }
+   $ and % are summed. Points are averaged per contract. R is the total result divided by the total
+   risk (every piece's own risk = $ ÷ R), so a piece with 1 contract does not weigh like one with 3. */
+function btMergeMetrics(parts){
+  const rnd = (x,d)=>{ const f = Math.pow(10,d); return Math.round(x*f)/f; };
+  const med = a => { const q = a.slice().sort((x,y)=>x-y); return q[Math.floor(q.length/2)]; };
+  const n = parts.length, m = {};
+  let approx = false;
+  const hasQty = parts.every(p=>p.qty>0);
+  const w = parts.map(p=> hasQty ? p.qty : 1), sumW = w.reduce((a,b)=>a+b,0);
+  const all = u => parts.every(p=>p.m && p.m[u]!=null);
+  const sum = u => parts.reduce((a,p)=>a+p.m[u],0);
+  if(all('USD')) m.USD = rnd(sum('USD'),6);
+  if(all('PCT')) m.PCT = rnd(sum('PCT'),6);
+  if(all('PTS')) m.PTS = rnd(parts.reduce((a,p,i)=>a+p.m.PTS*w[i],0)/sumW,4);
+  if(all('R')){
+    let R = null;
+    if(all('USD')){
+      const risks = [];
+      parts.forEach((p,i)=>{ if(Math.abs(p.m.R)>1e-9 && Math.abs(p.m.USD)>1e-9) risks.push({ i, risk:Math.abs(p.m.USD/p.m.R) }); });
+      if(risks.length){
+        const vals = risks.map(x=>x.risk);
+        const sizesDiffer = hasQty && Math.max.apply(null,w)/Math.min.apply(null,w) > 1.05;
+        if(risks.length>=2 && sizesDiffer && Math.max.apply(null,vals)/Math.min.apply(null,vals) <= 1.03) R = sum('R');   // every R is measured against the whole position
+        else {
+          const total = hasQty ? med(risks.map(x=>x.risk/w[x.i]))*sumW : vals.reduce((a,b)=>a+b,0) + (n-risks.length)*med(vals);
+          if(total>0) R = sum('USD')/total;
+        }
+      }
+    }
+    if(R==null){ R = parts.reduce((a,p,i)=>a+p.m.R*w[i],0)/sumW; approx = true; }   // no $ to weigh with: weighted average
+    m.R = rnd(R,4);
+  }
+  return { m, approx };
+}
+function btMergeScaleOuts(rows){
+  const groups = new Map(), order = [];
+  rows.forEach(r=>{
+    const k = btMergeKey(r);
+    if(!k){ order.push({ solo:r }); return; }
+    let g = groups.get(k);
+    if(!g){ g = { rows:[] }; groups.set(k, g); order.push({ g }); }
+    g.rows.push(r);
+  });
+  let merged = 0, absorbed = 0, approx = 0;
+  const out = [];
+  order.forEach(o=>{
+    if(o.solo){ out.push(o.solo); return; }
+    const rs = o.g.rows;
+    if(rs.length===1){ out.push(rs[0]); return; }
+    const mm = btMergeMetrics(rs.map(r=>({ m:r.m||{}, qty:r.qty })));
+    const base = rs[0];
+    const unit = (base.unit && mm.m[base.unit]!=null) ? base.unit : BT_UNITS.find(u=>mm.m[u]!=null);
+    if(!unit){ rs.forEach(r=>out.push(r)); return; }
+    const vals = rs.map(r=> r.m && r.m[unit]!=null ? btFmt(r.m[unit], unit, true) : '—').join(', ');
+    const notes = []; rs.forEach(r=>{ if(r.note && notes.indexOf(r.note)<0) notes.push(r.note); });
+    notes.push(`${rs.length} exits samengevoegd (${vals})`);
+    const qtys = rs.every(r=>r.qty>0) ? rs.reduce((a,r)=>a+r.qty,0) : null;
+    out.push(Object.assign({}, base, { m:mm.m, result:mm.m[unit], unit, unitless:rs.every(r=>r.unitless), qty:qtys, tag:(rs.find(r=>r.tag)||base).tag||'', note:notes.join(' · '), parts:rs.length }));
+    merged++; absorbed += rs.length; if(mm.approx) approx++;
+  });
+  return { rows:out, merged, absorbed, approx };
+}
+
 /* ---- the whole dump ---- */
 function btParseDump(text, opts){
   opts = opts || {};
@@ -5239,9 +5318,11 @@ function btParseDump(text, opts){
       if(!r.date) out.badDates++;
     }
     delete r.dateRaw;
-    if(r.date){ const y = r.date.slice(0,4); out.years[y] = (out.years[y]||0)+1; } else out.undated++;
     if(!r.symbol && opts.symbol) r.symbol = String(opts.symbol).toUpperCase();
   });
+  out.rawCount = out.rows.length;
+  if(opts.merge!==false){ const mg = btMergeScaleOuts(out.rows); out.rows = mg.rows; out.mergeInfo = mg.merged ? { merged:mg.merged, absorbed:mg.absorbed, approx:mg.approx } : null; }
+  out.rows.forEach(r=>{ if(r.date){ const y = r.date.slice(0,4); out.years[y] = (out.years[y]||0)+1; } else out.undated++; });
 
   // which unit does the data speak?
   const uc = {}; let withUnit = 0;
@@ -5558,6 +5639,96 @@ function btSetBeUnit(u){
 }
 function btStats(s){ return computeBacktest(btTradesOf(s.id), { be:s.be, beZero:s.beZero, unit:s.unit, beSame:s.unit===s.beUnit }); }
 
+
+/* ---------- merge scale-outs that are already stored ---------- */
+function btStoredMetrics(t, s){
+  const m = { R:t.r, USD:t.usd, PTS:t.pts, PCT:t.pct };
+  if(m[s.nativeUnit]==null && t.result!=null) m[s.nativeUnit] = t.result;
+  return m;
+}
+function btMergeScan(sessions){
+  const res = [];
+  sessions.forEach(s=>{
+    const raw = btRawTradesOf(s.id).slice().sort((a,b)=>a.seq-b.seq);
+    const map = new Map();
+    raw.forEach(t=>{ const k = btMergeKey(t); if(!k) return; if(!map.has(k)) map.set(k, []); map.get(k).push(t); });
+    const groups = []; let approx = 0;
+    map.forEach(list=>{
+      if(list.length<2) return;
+      const mm = btMergeMetrics(list.map(t=>({ m:btStoredMetrics(t,s) })));
+      if(!BT_UNITS.some(u=>mm.m[u]!=null)) return;
+      if(mm.approx) approx++;
+      const nu = mm.m[s.nativeUnit]!=null ? s.nativeUnit : BT_UNITS.find(u=>mm.m[u]!=null);
+      const vals = list.map(t=>{ const v = btStoredMetrics(t,s)[nu]; return v==null ? '—' : btFmt(v, nu, true); }).join(', ');
+      const notes = []; list.forEach(t=>{ if(t.note && notes.indexOf(t.note)<0) notes.push(t.note); });
+      notes.push(`${list.length} exits samengevoegd (${vals})`);
+      groups.push({ trades:list, m:mm.m, nu, vals, note:notes.join(' · ') });
+    });
+    if(groups.length) res.push({ session:s, groups, approx, sig: raw.length+':'+groups.length, absorbed: groups.reduce((a,g)=>a+g.trades.length,0) });
+  });
+  return res;
+}
+function btMergeIgnored(){ try{ return JSON.parse(localStorage.getItem('journalx.btMergeIgnore')||'{}') || {}; }catch(e){ return {}; } }
+function btMergeIgnore(scope){
+  const ign = btMergeIgnored();
+  btMergeScan(scope==='all' ? btSessions : [btSession(scope)].filter(Boolean)).forEach(x=>{ ign[x.session.id] = x.sig; });
+  try{ localStorage.setItem('journalx.btMergeIgnore', JSON.stringify(ign)); }catch(e){}
+  btRenderMergeBar();
+}
+function btRenderMergeBar(){
+  const el = document.getElementById('btMergeBar'); if(!el) return;
+  if(btError || !btSessions.length){ el.innerHTML = ''; return; }
+  const scope = btSelected==='overview' ? btSessions : [btSession(btSelected)].filter(Boolean);
+  const ign = btMergeIgnored();
+  const scan = btMergeScan(scope).filter(x=>ign[x.session.id]!==x.sig);
+  if(!scan.length){ el.innerHTML = ''; return; }
+  const abs = scan.reduce((a,x)=>a+x.absorbed,0), gr = scan.reduce((a,x)=>a+x.groups.length,0);
+  const where = scan.length===1 ? `“${escHtml(scan[0].session.name)}”` : `${scan.length} sessies`;
+  const id = btSelected==='overview' ? 'all' : btSelected;
+  el.innerHTML = `<div class="panel" style="border-color:var(--be); background:rgba(224,184,75,.07); margin-bottom:14px; padding:14px 16px;">
+    <div style="font-weight:600; margin-bottom:4px;">⛓ Scale-outs gevonden in ${where}</div>
+    <div style="font-size:12.5px; color:var(--text-dim); line-height:1.5;"><b>${abs}</b> regels horen bij <b>${gr}</b> trades (zelfde dag, zelfde entry-minuut, symbool en richting — bv. meerdere take profits). Nu tellen ze als ${abs} aparte trades mee in winrate en profit factor.</div>
+    <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+      <button type="button" class="btn small" onclick="btMergeApply('${id}')">Samenvoegen (${abs} → ${gr})</button>
+      <button type="button" class="btn secondary small" onclick="btMergeIgnore('${id}')">Het zijn aparte trades</button>
+    </div></div>`;
+}
+async function btMergeApply(scope){
+  const ign = btMergeIgnored();
+  const scan = btMergeScan(scope==='all' ? btSessions : [btSession(scope)].filter(Boolean)).filter(x=>ign[x.session.id]!==x.sig);
+  if(!scan.length) return;
+  const abs = scan.reduce((a,x)=>a+x.absorbed,0), gr = scan.reduce((a,x)=>a+x.groups.length,0);
+  const ex = [];
+  scan.forEach(x=>x.groups.slice(0,3).forEach(g=>{ if(ex.length<5) ex.push(`• ${fmtDay(g.trades[0].date)} ${g.trades[0].time} ${g.trades[0].symbol||''} ${g.trades[0].direction==='long'?'Long':'Short'}: ${g.vals}  →  ${btFmt(g.m[g.nu], g.nu, true)}`); }));
+  const approx = scan.reduce((a,x)=>a+x.approx,0);
+  if(!confirm(`${abs} regels worden samengevoegd tot ${gr} trades:\n\n${ex.join('\n')}${abs>ex.length?'\n…':''}\n\n${approx?`Let op: bij ${approx} groep(en) is R gemiddeld (geen $-waarden om mee te wegen).\n\n`:''}De losse exits worden verwijderd; in de notitie van de trade blijven de oorspronkelijke waarden staan. Doorgaan?`)) return;
+  try{
+    for(const x of scan){
+      const s = x.session, del = [];
+      for(const g of x.groups){
+        const keep = g.trades[0];
+        const patch = { result: g.m[s.nativeUnit]!=null ? g.m[s.nativeUnit] : null, r_value:g.m.R!=null?g.m.R:null, usd_value:g.m.USD!=null?g.m.USD:null, pts_value:g.m.PTS!=null?g.m.PTS:null, pct_value:g.m.PCT!=null?g.m.PCT:null, note:g.note };
+        const { error } = await supabase.from('backtest_trades').update(patch).eq('id', keep.id);
+        if(error) throw error;
+        Object.assign(keep, { result:patch.result, r:patch.r_value, usd:patch.usd_value, pts:patch.pts_value, pct:patch.pct_value, note:patch.note });
+        g.trades.slice(1).forEach(t=>del.push(t.id));
+      }
+      for(let i=0;i<del.length;i+=100){
+        const { error } = await supabase.from('backtest_trades').delete().in('id', del.slice(i,i+100));
+        if(error) throw error;
+      }
+      const gone = new Set(del);
+      btTrades = btTrades.filter(t=>!gone.has(t.id));
+    }
+    btIndexCache = null; btViewCache.clear();
+    showToast(`${abs} regels samengevoegd tot ${gr} trades ✓`);
+    btRenderAll();
+  }catch(e){
+    console.error('merge failed', e); showToast('Samenvoegen mislukt: ' + (e.message||'onbekende fout'));
+    await btReload();
+  }
+}
+
 async function btLoad(){
   if(btLoading) return;
   btLoading = true; btError = null;
@@ -5612,7 +5783,7 @@ function btRenderAll(){
   if(btSelected!=='overview' && !btSession(btSelected)) btSelected = 'overview';
   $('#btDrop').style.display = '';
   $('#btAddTradeBtn').style.display = btSelected==='overview' ? 'none' : '';
-  btRenderSessions(); btRenderHead(); btRenderTargetChips(); btApplyDropOpen(); btRenderBody();
+  btRenderSessions(); btRenderHead(); btRenderMergeBar(); btRenderTargetChips(); btApplyDropOpen(); btRenderBody();
   if(btDrop.parsed || $('#btText').value.trim()) btAnalyze();
 }
 function btSelect(id){
@@ -6215,7 +6386,7 @@ function btTargetUnit(){ const s = btSession(btDrop.target); return s ? s.unit :
 function btAnalyze(){
   const text = $('#btText').value;
   if(!text.trim()){ btDrop.parsed = null; btRenderPreview(); return; }
-  const p = btParseDump(text, { unit:btTargetUnit(), dateFmt:btDrop.fmt, symbol:($('#btSym').value||'').trim() });
+  const p = btParseDump(text, { unit:btTargetUnit(), dateFmt:btDrop.fmt, symbol:($('#btSym').value||'').trim(), merge:$('#btMerge').checked });
   if($('#btReverse').checked) p.rows.reverse();
   btDrop.parsed = p;
   btRenderPreview();
@@ -6274,7 +6445,8 @@ function btMakePlan(p){
     }
     if(btDrop.mode==='append' && existing.length){
       const cnt = new Map(); existing.forEach(t=>{ const k = btRowKey(t.date,t.time,t.symbol,t.direction,t.result); cnt.set(k,(cnt.get(k)||0)+1); });
-      g.dupFlags = g.rows.map(r=>{ const k = btRowKey(r.date,r.time,r.symbol,r.dir,r.m ? r.m[s.nativeUnit] : r.result); const c = cnt.get(k)||0; if(c>0){ cnt.set(k,c-1); return true; } return false; });
+      const have4 = new Set(existing.map(t=>btMergeKey(t)).filter(Boolean));   // same day + entry minute + symbol + direction
+      g.dupFlags = g.rows.map(r=>{ const k = btRowKey(r.date,r.time,r.symbol,r.dir,r.m ? r.m[s.nativeUnit] : r.result); const c = cnt.get(k)||0; if(c>0){ cnt.set(k,c-1); return true; } if(r.parts>1 && have4.has(btMergeKey(r))) return true; return false; });
       g.dupes = g.dupFlags.filter(Boolean).length; plan.dupTotal += g.dupes;
     }
   });
@@ -6310,6 +6482,8 @@ function btRenderPreview(){
     `<span class="tag">Gevonden: ${BT_UNITS.filter(u=>pk.cnt[u]>=p.rows.length*0.5).map(u=>BT_UNIT_CHIP[u]).join(' · ')}${pk.cnt.USD>=p.rows.length*0.5 && !(pk.cnt.PCT>=p.rows.length*0.5) ? ' · % (netto ÷ startkapitaal)' : ''}</span>`,
     years.length ? `<span class="tag">${years.length===1?years[0]:years[0]+' – '+years[years.length-1]+' · '+years.length+' jaren'}</span>` : `<span class="tag">zonder datums</span>`,
     p.rows.some(r=>r.date) && p.dateFmt ? `<span class="tag">Datums: ${p.dateFmt==='mdy'?'MM/DD':'DD/MM'}</span>` : '',
+    p.mergeInfo ? `<span class="tag win" title="Zelfde dag, zelfde entry-minuut, zelfde symbool en richting">⛓ ${p.mergeInfo.absorbed} exits samengevoegd tot ${p.mergeInfo.merged} trade${p.mergeInfo.merged===1?'':'s'}</span>` : '',
+    p.mergeInfo && p.mergeInfo.approx ? `<span class="tag be" title="Zonder $-waarden is R gemiddeld in plaats van gewogen">R gemiddeld (geen $ per exit)</span>` : '',
     p.stacked ? `<span class="tag">kolommen onder elkaar herkend</span>` : '',
     p.header ? `<span class="tag">kopregel herkend</span>` : '',
     p.badDates ? `<span class="tag loss">${p.badDates} onleesbare datum${p.badDates===1?'':'s'}</span>` : '',
@@ -6562,6 +6736,7 @@ function btInit(){
   $('#btNewName').addEventListener('input', ()=>btDebounce('plan', btRenderPreview, 200));
   $('#btSym').addEventListener('input', ()=>btDebounce('analyze', btAnalyze, 350));
   $('#btReverse').addEventListener('change', btAnalyze);
+  $('#btMerge').addEventListener('change', btAnalyze);
   $('#btSkipDupes').addEventListener('change', ()=>{ btDrop.dupTouched = true; btRenderPreview(); });
   document.addEventListener('keydown', e=>{
     if(e.key!=='Escape') return;
@@ -6651,7 +6826,7 @@ window.closeLightbox = closeLightbox;
 window.refreshNow = refreshNow;
 window.switchViewGlobal = switchView;
 window.btSelect = btSelect;
-window.btSetView = btSetView; window.btSetBeUnit = btSetBeUnit;
+window.btSetView = btSetView; window.btMergeApply = btMergeApply; window.btMergeIgnore = btMergeIgnore; window.btSetBeUnit = btSetBeUnit;
 window.btOpenSession = btOpenSession;
 window.btOpenTrade = btOpenTrade;
 window.btCloseModal = btCloseModal;
