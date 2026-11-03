@@ -793,7 +793,7 @@
 <div id="authScreen" style="min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(700px 360px at 50% -8%, var(--accent-glow), transparent 70%), var(--bg);">
   <div style="width:100%; max-width:380px; padding:32px;">
     <div style="display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:10px;">
-      <span style="display:block; width:38px; height:38px;"><svg style="width:38px;height:38px;display:block;" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--surface-2)"/><path d="M9.5 9.5 L22.5 22.5" stroke="var(--neg)" stroke-width="3.2" stroke-linecap="round"/><path d="M9 23 L23 9" stroke="var(--surface-2)" stroke-width="7" stroke-linecap="round"/><path d="M9.5 22.5 L22.5 9.5" stroke="var(--pos)" stroke-width="3.2" stroke-linecap="round"/></svg></span>
+      <span style="display:block; width:38px; height:38px;"><svg style="width:38px;height:38px;display:block;" viewBox="0 0 64 64" fill="none" aria-hidden="true"><defs><linearGradient id="aubg" x1="6" y1="2" x2="58" y2="62" gradientUnits="userSpaceOnUse"><stop stop-color="#222E3F"/><stop offset="1" stop-color="#0A0E13"/></linearGradient><linearGradient id="auup" x1="16" y1="48" x2="47" y2="17" gradientUnits="userSpaceOnUse"><stop stop-color="#3DDC97"/><stop offset="1" stop-color="#6CB8FF"/></linearGradient><mask id="aum" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><path d="M16 48L47 17" stroke="#000" stroke-width="15.5" stroke-linecap="round"/></mask></defs><rect width="64" height="64" rx="16" fill="url(#aubg)"/><rect x=".5" y=".5" width="63" height="63" rx="15.5" stroke="#fff" stroke-opacity=".09"/><path d="M18.5 18.5L45.5 45.5" stroke="#FF6A75" stroke-width="7.5" stroke-linecap="round" mask="url(#aum)"/><path d="M16 48L46 18" stroke="url(#auup)" stroke-width="7.5" stroke-linecap="round"/><circle cx="46.5" cy="17.5" r="5.6" fill="#6CB8FF"/></svg></span>
       <span style="font-family:var(--f-disp); font-weight:700; font-size:26px; letter-spacing:-0.8px;">Journal X</span>
     </div>
     <div style="text-align:center; font-size:13px; color:var(--text-faint); margin-bottom:30px;">Je ICT futures journal</div>
@@ -817,7 +817,7 @@
 
 <div id="appShell" style="display:none; width:100%; min-height:100vh;">
 <div id="sidebar">
-  <div class="brand"><svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--surface-2)"/><path d="M9.5 9.5 L22.5 22.5" stroke="var(--neg)" stroke-width="3.2" stroke-linecap="round"/><path d="M9 23 L23 9" stroke="var(--surface-2)" stroke-width="7" stroke-linecap="round"/><path d="M9.5 22.5 L22.5 9.5" stroke="var(--pos)" stroke-width="3.2" stroke-linecap="round"/></svg><div>Journal X<small>ICT futures</small></div></div>
+  <div class="brand"><svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><defs><linearGradient id="sbbg" x1="6" y1="2" x2="58" y2="62" gradientUnits="userSpaceOnUse"><stop stop-color="#222E3F"/><stop offset="1" stop-color="#0A0E13"/></linearGradient><linearGradient id="sbup" x1="16" y1="48" x2="47" y2="17" gradientUnits="userSpaceOnUse"><stop stop-color="#3DDC97"/><stop offset="1" stop-color="#6CB8FF"/></linearGradient><mask id="sbm" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><path d="M16 48L47 17" stroke="#000" stroke-width="15.5" stroke-linecap="round"/></mask></defs><rect width="64" height="64" rx="16" fill="url(#sbbg)"/><rect x=".5" y=".5" width="63" height="63" rx="15.5" stroke="#fff" stroke-opacity=".09"/><path d="M18.5 18.5L45.5 45.5" stroke="#FF6A75" stroke-width="7.5" stroke-linecap="round" mask="url(#sbm)"/><path d="M16 48L46 18" stroke="url(#sbup)" stroke-width="7.5" stroke-linecap="round"/><circle cx="46.5" cy="17.5" r="5.6" fill="#6CB8FF"/></svg><div>Journal X<small>ICT futures</small></div></div>
   <div class="nav-label">Analyse</div>
   <div class="navbtn active" data-view="dashboard">
     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
@@ -1198,38 +1198,17 @@ notitie    alle overige woorden</pre>
     <div class="view-body">
       <div id="accountsList"></div>
       <div class="panel" style="margin-top:8px;">
-        <h2>Een account koppelen</h2>
-        <div style="font-size:13px; color:var(--text-dim); line-height:1.7;">
-          Trades worden automatisch geïmporteerd door de <strong>MT5 sync-service</strong> die op je pc draait.
-          Zolang je pc aanstaat met MetaTrader 5 ingelogd, worden ook trades vanaf je telefoon meegenomen.
-          <br><br>
-          Zie de handleiding <strong>HANDLEIDING_mt5_sync.md</strong> om de service in te stellen. Zodra de eerste
-          sync draait, verschijnt je account hier automatisch en zie je je trades in het dashboard.
-        </div>
-      </div>
-
-      <div class="panel" style="margin-top:8px;">
         <h2>Trades importeren uit CSV</h2>
-        <div style="font-size:13px; color:var(--text-dim); line-height:1.7; margin-bottom:16px;">
-          Voor brokers zonder API-toegang (zoals <strong>Tradovate / Apex</strong>). Exporteer in Tradovate via
-          <strong>Reports → Performance → Download CSV</strong> en sleep het bestand hieronder.
-          <br><strong>Tradesea / Rithmic:</strong> download je <strong>Orders</strong> als CSV (Orders / Trade History) en sleep dat hieronder — het systeem maakt er zelf trades van.
-          <br>
-          Je mag gerust telkens je volledige geschiedenis uploaden — trades die er al in staan worden automatisch
-          overgeslagen, en je journal-notities blijven altijd behouden.
-        </div>
-
         <div class="form-row c2" style="margin-bottom:14px;">
           <div class="field">
             <label>Importeren naar account</label>
             <select id="csvAccountSelect"></select>
             <input type="text" id="csvAccountLabel" placeholder="Naam van het nieuwe account" style="display:none; margin-top:8px;">
-            <div id="csvAccountHint" style="font-size:11px; color:var(--text-faint); margin-top:5px;"></div>
+            <div id="csvAccountHint" style="display:none;"></div>
           </div>
           <div class="field" id="csvBalWrap" style="display:none;">
             <label>Accountbalans ($)</label>
             <input type="number" step="any" min="0" id="csvBalance" placeholder="bv. 50000">
-            <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">Nodig voor de breakeven-drempel (standaard 0,2% van je balans).</div>
           </div>
           <div class="field">
             <label>Tijdzone van de CSV-tijden</label>
@@ -1249,12 +1228,6 @@ notitie    alle overige woorden</pre>
         <div class="field" style="max-width:280px; margin-bottom:14px;">
           <label>Commissie per contract ($)</label>
           <input type="number" step="0.01" min="0" id="csvCommission" placeholder="bv. 1.22">
-          <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">
-            (Een Tradesea-orderbestand bevat de commissie al per order; dit veld wordt dan genegeerd.) Tradovate exporteert <strong>bruto</strong> P&amp;L, zonder kosten — daarom wijkt het af van je prop
-            firm-dashboard. Vul je commissie per contract (round turn) in en de bedragen kloppen weer.
-            Weet je het niet precies? Deel het verschil tussen je dashboard en je bruto-totaal door het aantal
-            verhandelde contracten.
-          </div>
         </div>
 
         <div id="csvDrop" style="border:1px dashed var(--border); border-radius:10px; padding:22px; text-align:center; cursor:pointer;">
@@ -1264,13 +1237,7 @@ notitie    alle overige woorden</pre>
 
         <label class="checkfield" style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer;">
           <input type="checkbox" id="csvMergeScaleOuts" checked>
-          <span style="font-size:12.5px; color:var(--text-dim);">
-            Deelafsluitingen samenvoegen tot één trade
-            <span style="display:block; font-size:11px; color:var(--text-faint);">
-              Neem je winst in stukken (bv. een extra limit-order als tweede target)? Dan rapporteert je broker
-              elk stuk apart. Aangevinkt telt dat als één trade — anders lijken je aantallen en win rate hoger dan ze zijn.
-            </span>
-          </span>
+          <span style="font-size:12.5px; color:var(--text-dim);">Deelafsluitingen samenvoegen tot één trade</span>
         </label>
 
         <div id="csvMapping" style="display:none; margin-top:18px;"></div>
