@@ -444,6 +444,11 @@
   .payoff-bars i{display:block; height:100%; border-radius:3px;}
   .payoff-vals{display:flex; justify-content:space-between; margin-top:7px; font-size:13px; font-weight:600;}
 
+  .type-sel{background:transparent; border:1px solid var(--border); color:var(--text-faint); font-size:12px; padding:5px 8px; border-radius:20px; cursor:pointer; max-width:118px;}
+  .type-sel.set{color:var(--accent-bright); border-color:var(--accent); background:var(--accent-glow);}
+  .tw-summary{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 6px;}
+  .tw-summary .tag b{font-weight:600; margin:0 3px;}
+
   /* ---------- CALENDAR ---------- */
   .cal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:12px; flex-wrap:wrap;}
   .cal-nav{display:flex; align-items:center; gap:8px;}
@@ -895,12 +900,30 @@
       </div>
       <div class="grid-3">
         <div class="panel"><h2>Per Richting</h2><table id="directionTable"></table></div>
+        <div class="panel"><h2>Per Trade type</h2><table id="typeTable"></table></div>
         <div class="panel"><h2>Per Setup Grade</h2><table id="gradeTable"></table></div>
-        <div class="panel"><h2>Per Emotie</h2><table id="emotionTable"></table></div>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
+        <div class="panel"><h2>Per Emotie</h2><table id="emotionTable"></table></div>
         <div class="panel"><h2>Per Setup / Tag</h2><table id="tagTable"></table></div>
         <div class="panel" id="accountBreakdownPanel" style="display:none;"><h2>Per Account</h2><table id="accountTable"></table></div>
+      </div>
+
+      <div class="panel" id="timePanel">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>Per tijdvak (New York-tijd)</h2>
+            <div class="desc" style="margin-bottom:0;">Op welk moment van de dag je entry's presteren. Hoe meer trades in een tijdvak, hoe betrouwbaarder de cijfers.</div>
+          </div>
+          <div class="multiselect" id="twSize" data-single="true" style="margin:0;">
+            <div class="chip selected" data-val="15">15 min</div>
+            <div class="chip" data-val="30">30 min</div>
+            <div class="chip" data-val="60">1 uur</div>
+          </div>
+        </div>
+        <div id="timeSummary" class="tw-summary"></div>
+        <div style="height:210px; margin-top:6px;"><canvas id="timeChart" role="img" aria-label="Netto resultaat per tijdvak"></canvas></div>
+        <div class="vault-scroll" style="margin-top:14px;"><table id="timeTable"></table></div>
       </div>
 
       <div class="panel">
@@ -941,6 +964,7 @@
       <div class="filterbar">
         <select id="fSymbol"><option value="">Alle instrumenten</option></select>
         <select id="fOutcome"><option value="">Alle resultaten</option><option value="Win">Win</option><option value="Loss">Loss</option><option value="BE">Breakeven</option></select>
+        <select id="fType"><option value="">Alle types</option><option value="mech">Mech model</option><option value="continuation">Continuation</option><option value="normal">Normaal</option><option value="none">Type niet ingevuld</option></select>
         <select id="fJournal"><option value="">Journal: alle</option><option value="yes">Met notities</option><option value="no">Zonder notities</option><option value="excluded">Uitgesloten trades</option></select>
         <input type="text" id="fSearch" placeholder="Zoek in notities/tags…" style="flex:1; min-width:140px;">
       </div>
@@ -1406,6 +1430,15 @@ notitie    alle overige woorden</pre>
       </div>
     </div>
 
+    <div class="field" style="margin-bottom:18px;">
+      <label>Trade type</label>
+      <div class="multiselect" id="jType" data-single="true">
+        <div class="chip" data-val="mech">Mech model</div>
+        <div class="chip" data-val="continuation">Continuation</div>
+        <div class="chip" data-val="normal">Normaal</div>
+      </div>
+    </div>
+
     <div class="form-row c3">
       <div class="field">
         <label>Setup Grade</label>
@@ -1865,6 +1898,7 @@ function generateInsights(list){
   }
   dim('Setup/Tag', groupBy(list, t=>t.tags));
   dim('Setup Grade', groupBy(list, t=>t.setupGrade));
+  dim('Trade type', groupBy(list, t=>tradeTypeLabel(t.tradeType)));
   dim('Emotie', groupBy(list, t=>t.emotion));
   dim('Sessie', groupBy(list, t=>sessionOf(t)));
   dim('Instrument', groupBy(list, t=>t.symbol));
@@ -1899,6 +1933,7 @@ function mergeTradeRow(bt, journal, hasShots){
     emotion: journal?(journal.emotion||''):'',
     tags: journal?(journal.tags||[]):[],
     setupGrade: journal?(journal.setup_grade||''):'',
+    tradeType: journal?(journal.trade_type||''):'',
     lessonsLearned: journal?(journal.lessons_learned||''):'',
     followedPlan: journal?journal.followed_plan:null,
     initialSlPrice: journal&&journal.initial_sl_price!=null?num(journal.initial_sl_price):null,
@@ -1922,6 +1957,7 @@ function journalHasContent(journal, hasShots){
       || filled(journal.lessons_learned)
       || filled(journal.emotion)
       || filled(journal.setup_grade)
+      || filled(journal.trade_type)
       || (Array.isArray(journal.tags) && journal.tags.length > 0)
       || journal.followed_plan === true || journal.followed_plan === false
       || journal.initial_sl_price != null
@@ -1929,11 +1965,14 @@ function journalHasContent(journal, hasShots){
       || journal.excluded === true;
 }
 function isFiniteNum(v){ return v!==null&&v!==undefined&&!isNaN(v); }
+let tradeTypeMissing = false;
+const TRADE_TYPE_LABELS = { mech:'Mech model', continuation:'Continuation', normal:'Normaal' };
+function tradeTypeLabel(v){ return TRADE_TYPE_LABELS[v] || ''; }
 function journalToDbRow(t){
   return {
     broker_trade_id: t.id,
     notes: t.notes||null, analysis: t.analysis||null, emotion: t.emotion||null,
-    tags: t.tags||[], setup_grade: t.setupGrade||null, lessons_learned: t.lessonsLearned||null,
+    tags: t.tags||[], setup_grade: t.setupGrade||null, trade_type: t.tradeType||null, lessons_learned: t.lessonsLearned||null,
     followed_plan: t.followedPlan===null||t.followedPlan===undefined?null:!!t.followedPlan,
     initial_sl_price: isFiniteNum(t.initialSlPrice)?t.initialSlPrice:null,
     planned_risk_usd: isFiniteNum(t.plannedRiskUsd)?t.plannedRiskUsd:null,
@@ -2099,7 +2138,7 @@ function computeCopyClusters(){
     const rep = byId.get(t.repId);
     if(!rep || !(rep.hasJournal || rep.journalId)) return;
     t.notes=rep.notes; t.analysis=rep.analysis; t.lessonsLearned=rep.lessonsLearned;
-    t.emotion=rep.emotion; t.setupGrade=rep.setupGrade; t.tags=rep.tags; t.followedPlan=rep.followedPlan;
+    t.emotion=rep.emotion; t.setupGrade=rep.setupGrade; t.tradeType=rep.tradeType; t.tags=rep.tags; t.followedPlan=rep.followedPlan;
     t.excluded=rep.excluded; t.excludeReason=rep.excludeReason;
     t.hasScreenshots=rep.hasScreenshots; t.hasJournal=rep.hasJournal;
   });
@@ -2220,7 +2259,7 @@ async function loadAll(){
     const [accRes, btRes, jRes, ssRes, shotRes, finRes] = await Promise.all([
       supabase.from('broker_accounts').select('*').order('created_at',{ascending:true}),
       supabase.from('broker_trades').select('id,account_id,source,external_id,symbol,direction,volume,open_time,close_time,open_price,close_price,gross_pnl,commission,swap,net_pnl,initial_sl_price').order('close_time',{ascending:false}),
-      supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd,excluded,exclude_reason'),
+      supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,trade_type,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd,excluded,exclude_reason'),
       supabase.from('sync_state').select('*'),
       // Which journals have screenshots — ids only, so this stays tiny. The
       // images themselves are far too heavy to pull for every trade up front.
@@ -2232,6 +2271,12 @@ async function loadAll(){
     ]);
     if(accRes.error) throw accRes.error;
     if(btRes.error) throw btRes.error;
+    if(jRes.error && /trade_type/i.test(jRes.error.message||'')){
+      // The database has not had the trade-type update yet: load the journals without it.
+      tradeTypeMissing = true;
+      const again = await supabase.from('trade_journals').select('id,broker_trade_id,notes,analysis,emotion,tags,setup_grade,lessons_learned,followed_plan,initial_sl_price,planned_risk_usd,excluded,exclude_reason');
+      jRes.error = again.error; jRes.data = again.data;
+    }
     if(jRes.error) throw jRes.error;
 
     accounts = (accRes.data||[]).filter(a=>a.broker_type!=='manual_legacy' || (btRes.data||[]).some(bt=>bt.account_id===a.id));
@@ -2409,6 +2454,76 @@ function setHeroNumber(el, v){
   const step = now=>{ const p = Math.min(1,(now-t0)/dur), e = 1-Math.pow(1-p,4); el.textContent = fmtMoneySigned(v*e); if(p<1) requestAnimationFrame(step); else el.textContent = fmtMoneySigned(v); };
   requestAnimationFrame(step);
 }
+/* ---------- Performance per time window (New York time, by entry) ---------- */
+const NY_TIME = new Intl.DateTimeFormat('en-GB', { timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+function nyMinutes(iso){
+  if(!iso) return null; const d = new Date(iso); if(isNaN(d)) return null;
+  const p = NY_TIME.formatToParts(d);
+  return (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value);
+}
+function hmLabel(m){ m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+const TW_MIN_TRADES = 5;
+function renderTimeWindows(list){
+  const table = $('#timeTable'), canvas = $('#timeChart'), sum = $('#timeSummary');
+  if(!table) return;
+  const size = parseInt(getSelectedChips('twSize')[0] || '15', 10) || 15;
+  if(charts.timeChart){ charts.timeChart.destroy(); delete charts.timeChart; }
+  const groups = new Map();
+  list.forEach(t=>{
+    const m = nyMinutes(t.openTime || t.closeTime); if(m===null) return;
+    const b = Math.floor(m/size)*size;
+    if(!groups.has(b)) groups.set(b, []);
+    groups.get(b).push(t);
+  });
+  if(!groups.size){
+    table.innerHTML = emptyRow(); if(sum) sum.innerHTML = '';
+    return;
+  }
+  const starts = [...groups.keys()].sort((a,b)=>a-b);
+  const stats = new Map(starts.map(b=>[b, computeStats(groups.get(b))]));
+  const label = b => hmLabel(b)+'–'+hmLabel(b+size);
+  // best and worst window, only among windows with enough trades to mean something
+  const solid = starts.filter(b=>stats.get(b).n>=TW_MIN_TRADES);
+  if(sum){
+    if(solid.length>=2){
+      const byExp = solid.slice().sort((a,b)=>stats.get(b).expectancy-stats.get(a).expectancy);
+      const best = byExp[0], worst = byExp[byExp.length-1];
+      sum.innerHTML = `<span class="tag win">Sterkste: <b>${label(best)}</b> · ${fmtMoneySigned(stats.get(best).expectancy)} per trade</span><span class="tag loss">Zwakste: <b>${label(worst)}</b> · ${fmtMoneySigned(stats.get(worst).expectancy)} per trade</span><span class="tag">Alleen tijdvakken met minstens ${TW_MIN_TRADES} trades tellen mee</span>`;
+    } else {
+      sum.innerHTML = `<span class="tag">Nog geen tijdvak met ${TW_MIN_TRADES} trades — vergelijken heeft dan weinig zin. Log meer trades.</span>`;
+    }
+  }
+  // chart: continuous range so gaps in the day stay visible
+  const first = starts[0], last = starts[starts.length-1];
+  const labels = [], values = [];
+  for(let b=first; b<=last; b+=size){ labels.push(hmLabel(b)); values.push(stats.has(b) ? +stats.get(b).netPnl.toFixed(2) : 0); }
+  if(canvas){
+    charts.timeChart = new Chart(canvas, {
+      type:'bar',
+      data:{ labels, datasets:[{ data:values, backgroundColor:values.map(v=>v>=0?TH.a('pos',0.85):TH.a('neg',0.85)), borderRadius:5, maxBarThickness:34 }] },
+      options:{ animation:false, responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ displayColors:false, padding:10, cornerRadius:10, callbacks:{ title:(c)=>{ const b = first + c[0].dataIndex*size; return label(b)+' (NY)'; }, label:(c)=>{ const b = first + c.dataIndex*size; const st = stats.get(b); return st ? [fmtMoneySigned(c.parsed.y), st.n+' trade'+(st.n>1?'s':'')+(st.decidedCount?' · win rate '+st.winRate.toFixed(0)+'%':'')] : 'Geen trades'; } } } },
+        scales:{ x:{ grid:{display:false}, ticks:{ color:TH.tick2, font:{size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:12 } },
+                 y:{ border:{display:false}, grid:{color:TH.grid, drawBorder:false}, ticks:{ color:TH.tick, font:{size:11}, maxTicksLimit:5, callback:v=>fmtMoneyShort(v) } } } }
+    });
+  }
+  const maxAbs = Math.max.apply(null, starts.map(b=>Math.abs(stats.get(b).netPnl))) || 1;
+  let html = `<tr><th>Tijdvak (NY)</th><th>Trades</th><th>Win%</th><th>PF</th><th>Per trade</th><th>Net PnL</th></tr>`;
+  starts.forEach(b=>{
+    const st = stats.get(b), pf = isFinite(st.profitFactor) ? st.profitFactor.toFixed(2) : '∞';
+    const thin = st.n < TW_MIN_TRADES;
+    const w = Math.round(Math.abs(st.netPnl)/maxAbs*100);
+    html += `<tr${thin?' style="opacity:.55;" title="Minder dan '+TW_MIN_TRADES+' trades: nog geen betrouwbaar beeld"':''}>
+      <td style="font-weight:600;">${label(b)}</td>
+      <td style="color:var(--text-dim);">${st.n}</td>
+      <td>${st.decidedCount?`<span style="color:${st.winRate>=50?'var(--pos)':'var(--neg)'};">${st.winRate.toFixed(0)}%</span>`:'—'}</td>
+      <td style="color:var(--text-dim);">${st.decidedCount?pf:'—'}</td>
+      <td style="color:${st.expectancy>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(st.expectancy)}</td>
+      <td class="barcell"><div class="fill" style="width:${w}%; background:${st.netPnl>=0?'var(--pos-glow)':'var(--neg-glow)'};"></div><span style="font-weight:700; color:${st.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(st.netPnl)}</span></td>
+    </tr>`;
+  });
+  table.innerHTML = html;
+}
 function renderDashboard(){
   viewDirty.dashboard = false;
   const list = strategyTrades();       // what your strategy did
@@ -2498,7 +2613,7 @@ function renderDashboard(){
   if(list.length===0){
     ['equityChart','winrateChart'].forEach(id=>{ if(charts[id]){charts[id].destroy(); delete charts[id];} });
     const wrNote = $('#winrateNote'); if(wrNote) wrNote.textContent='';
-    ['symbolTable','sessionTable','weekdayTable','gradeTable','tagTable','emotionTable','directionTable','accountTable'].forEach(id=>{ const e=$('#'+id); if(e) e.innerHTML=emptyRow(); });
+    ['symbolTable','sessionTable','weekdayTable','gradeTable','typeTable','tagTable','emotionTable','directionTable','accountTable','timeTable'].forEach(id=>{ const e=$('#'+id); if(e) e.innerHTML=emptyRow(); });
     renderCalendar();
     return;
   }
@@ -2517,6 +2632,8 @@ function renderDashboard(){
   renderMoneyBreakdown('gradeTable', groupBy(list, t=>t.setupGrade), ['A+','A','B','C','FOMO']);
   renderMoneyBreakdown('tagTable', groupBy(list, t=>t.tags));
   renderMoneyBreakdown('emotionTable', groupBy(list, t=>t.emotion));
+  renderMoneyBreakdown('typeTable', groupBy(list, t=>tradeTypeLabel(t.tradeType)), ['Mech model','Continuation','Normaal']);
+  renderTimeWindows(list);
   renderMoneyBreakdown('directionTable', groupBy(list, t=>t.direction), ['long','short']);
   if(activeAccountId==='all' && accounts.length>1){
     renderMoneyBreakdown('accountTable', groupByAccount(list));
@@ -2569,7 +2686,7 @@ function renderMoneyBreakdown(elId, groupMap, order){
   el.innerHTML = html;
 }
 function labelFor(elId){
-  return ({symbolTable:'Instrument', sessionTable:'Sessie', weekdayTable:'Weekdag', gradeTable:'Grade', tagTable:'Setup/Tag', emotionTable:'Emotie', directionTable:'Richting', accountTable:'Account'})[elId] || '';
+  return ({typeTable:'Type', symbolTable:'Instrument', sessionTable:'Sessie', weekdayTable:'Weekdag', gradeTable:'Grade', tagTable:'Setup/Tag', emotionTable:'Emotie', directionTable:'Richting', accountTable:'Account'})[elId] || '';
 }
 function prettyKey(k){ if(k==='long') return 'Long'; if(k==='short') return 'Short'; return k; }
 function emptyRow(){ return `<tr><td style="color:var(--text-faint); padding:16px 0;">Nog geen trades — koppel je MT5 account.</td></tr>`; }
@@ -2741,6 +2858,7 @@ function renderLog(){
   const fSymbol = $('#fSymbol')?.value || '';
   const fOutcome = $('#fOutcome')?.value || '';
   const fJournal = $('#fJournal')?.value || '';
+  const fType = $('#fType')?.value || '';
   const fSearch = ($('#fSearch')?.value || '').toLowerCase();
 
   const chipEl = $('#dateFilterChip');
@@ -2787,6 +2905,7 @@ function renderLog(){
     if(logDateFilter && t.date!==logDateFilter) return false;
     if(fSymbol && t.symbol!==fSymbol) return false;
     if(fOutcome && outcomeOf(t)!==fOutcome) return false;
+    if(fType==='none' ? !!t.tradeType : (fType && t.tradeType!==fType)) return false;
     if(fJournal==='yes' && !t.hasJournal) return false;
     if(fJournal==='no' && t.hasJournal) return false;
     if(fJournal==='excluded' && !t.excluded) return false;
@@ -2794,17 +2913,17 @@ function renderLog(){
     return true;
   });
   // A different account/filter starts again from the first page.
-  const sig = [activeAccountId, fSymbol, fOutcome, fJournal, fSearch, logDateFilter].join('|');
+  const sig = [activeAccountId, fSymbol, fOutcome, fType, fJournal, fSearch, logDateFilter].join('|');
   if(sig !== logSig){ logSig = sig; logLimit = LOG_PAGE; }
   const countEl = $('#logCount'); if(countEl) countEl.textContent = filtered.length;
 
   if(filtered.length===0){
-    $('#logTable').innerHTML = `<tr><td colspan="9">${emptyState()}</td></tr>`;
+    $('#logTable').innerHTML = `<tr><td colspan="11">${emptyState()}</td></tr>`;
     return;
   }
   // The account column only earns its space when more than one account is in view.
   const showAccountCol = activeAccountId === 'all' && accounts.length > 1;
-  let html = `<tr><th>Sluitdatum</th>${showAccountCol?'<th>Account</th>':''}<th>Instrument</th><th>Dir</th><th>Volume</th><th>Net PnL</th><th>R</th><th>Resultaat</th><th>Journal</th><th></th></tr>`;
+  let html = `<tr><th>Sluitdatum</th>${showAccountCol?'<th>Account</th>':''}<th>Instrument</th><th>Dir</th><th>Volume</th><th>Net PnL</th><th>R</th><th>Type</th><th>Resultaat</th><th>Journal</th><th></th></tr>`;
   const rows = filtered.slice(0, logLimit);
   rows.forEach(t=>{
     const o = outcomeOf(t);
@@ -2818,16 +2937,38 @@ function renderLog(){
       <td style="color:var(--text-dim);">${t.volume}</td>
       <td style="font-weight:700; color:${t.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.netPnl)}</td>
       <td style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'—':fmtR(r)}</td>
+      <td onclick="event.stopPropagation()"><select class="type-sel ${t.tradeType?'set':''}" onchange="setTradeType('${t.id}', this.value)" aria-label="Trade type"><option value="">—</option><option value="mech"${t.tradeType==='mech'?' selected':''}>Mech model</option><option value="continuation"${t.tradeType==='continuation'?' selected':''}>Continuation</option><option value="normal"${t.tradeType==='normal'?' selected':''}>Normaal</option></select></td>
       <td><span class="tag ${o==='Win'?'win':o==='Loss'?'loss':'be'}">${o}</span></td>
       <td>${t.hasJournal?'<span style="color:var(--accent-bright);">✓ Notities</span>':'<span style="color:var(--text-faint);">—</span>'}</td>
       <td style="white-space:nowrap;"><span class="btn secondary small" onclick="event.stopPropagation(); openJournal('${t.id}')">${t.hasJournal?'Bewerk':'+ Journal'}</span></td>
     </tr>`;
   });
   if(filtered.length > rows.length){
-    html += `<tr><td colspan="10" style="text-align:center; padding:14px;"><span class="btn secondary small" onclick="logShowMore()">Toon meer (${rows.length} van ${filtered.length})</span></td></tr>`;
+    html += `<tr><td colspan="11" style="text-align:center; padding:14px;"><span class="btn secondary small" onclick="logShowMore()">Toon meer (${rows.length} van ${filtered.length})</span></td></tr>`;
   }
   $('#logTable').innerHTML = html;
 }
+/* Quick-set the trade type straight from the Trade Log. */
+async function setTradeType(tradeId, val){
+  let t = brokerTrades.find(x=>x.id===tradeId); if(!t) return;
+  if(t.isCopy && t.repId){ const rep = brokerTrades.find(x=>x.id===t.repId); if(rep) t = rep; }   // a copy shares its main trade's journal
+  const row = { broker_trade_id:t.id, tags:t.tags||[], trade_type: val||null };
+  try{
+    row.user_id = (await supabase.auth.getUser()).data.user.id;
+    const { error } = await supabase.from('trade_journals').upsert(row, { onConflict:'broker_trade_id' });
+    if(error) throw error;
+    t.tradeType = val || '';
+    t.hasJournal = t.hasJournal || !!val;
+    computeCopyClusters();
+    showToast(val ? 'Trade type: ' + tradeTypeLabel(val) + ' ✓' : 'Trade type gewist');
+    refreshViews();
+  }catch(e){
+    console.error('trade type save failed', e);
+    showToast(/trade_type/i.test(e.message||'') ? 'Draai eerst supabase_migration_trade_type.sql in Supabase' : 'Opslaan mislukt: '+(e.message||''));
+    refreshViews();
+  }
+}
+window.setTradeType = setTradeType;
 function emptyState(){ return `<div class="empty"><div class="big">Geen trades gevonden</div>Koppel je MT5 account of pas je filters aan.</div>`; }
 
 function populateFilterOptions(){
@@ -2885,6 +3026,7 @@ function openJournal(tradeId){
   updateExcludeReasonVisibility();
   ddSetValue('jEmotion', t.emotion || '');
   ddSetValue('jGrade', t.setupGrade || '');
+  setSelectedChips('jType', t.tradeType ? [t.tradeType] : []);
   ddSetValue('jFollowedPlan', t.followedPlan===true?'yes':t.followedPlan===false?'no':'');
   // tags (multiselect chips)
   setSelectedChips('jTags', t.tags || []);
@@ -2923,6 +3065,7 @@ function journalFormState(){
     risk: $('#jPlannedRisk').value,
     emotion: ddValue('jEmotion'),
     grade: ddValue('jGrade'),
+    type: getSelectedChips('jType')[0] || '',
     plan: ddValue('jFollowedPlan'),
     tags: getSelectedChips('jTags').slice().sort(),
     excluded: $('#jExcluded').checked,
@@ -2995,6 +3138,7 @@ async function saveJournal(){
     lessonsLearned: $('#jLessons').value.trim(),
     emotion: ddValue('jEmotion'),
     setupGrade: ddValue('jGrade'),
+    tradeType: getSelectedChips('jType')[0] || '',
     followedPlan: fp==='yes'?true:fp==='no'?false:null,
     tags: getSelectedChips('jTags'),
     initialSlPrice: parseNumOrNull($('#jInitialSl').value),
@@ -3009,13 +3153,19 @@ async function saveJournal(){
   row.user_id = (await supabase.auth.getUser()).data.user.id;
 
   try{
-    const { error } = await supabase.from('trade_journals').upsert(row, { onConflict:'broker_trade_id' });
+    let { error } = await supabase.from('trade_journals').upsert(row, { onConflict:'broker_trade_id' });
+    if(error && /trade_type/i.test(error.message||'')){
+      tradeTypeMissing = true;
+      delete row.trade_type;
+      ({ error } = await supabase.from('trade_journals').upsert(row, { onConflict:'broker_trade_id' }));
+      if(!error) showToast('Journal opgeslagen, maar het trade type niet: draai eerst supabase_migration_trade_type.sql');
+    }
     if(error) throw error;
     // update local
     const shots = !!(payload.entryScreenshot || payload.exitScreenshot);
     Object.assign(t, {
       notes:payload.notes, analysis:payload.analysis, lessonsLearned:payload.lessonsLearned,
-      emotion:payload.emotion, setupGrade:payload.setupGrade, followedPlan:payload.followedPlan,
+      emotion:payload.emotion, setupGrade:payload.setupGrade, tradeType:tradeTypeMissing ? t.tradeType : payload.tradeType, followedPlan:payload.followedPlan,
       tags:payload.tags, initialSlPrice:payload.initialSlPrice, plannedRiskUsd:payload.plannedRiskUsd,
       excluded:payload.excluded, excludeReason:payload.excludeReason,
       entryScreenshot:payload.entryScreenshot, exitScreenshot:payload.exitScreenshot,
@@ -3024,7 +3174,7 @@ async function saveJournal(){
       // not mark the trade as journaled.
       hasJournal: journalHasContent(row, shots),
     });
-    showToast('Journal opgeslagen ✓');
+    if(!tradeTypeMissing) showToast('Journal opgeslagen ✓');
     closeJournal();
     computeCopyClusters();   // let the copies of this trade pick up the new notes
     refreshViews();
@@ -6961,8 +7111,10 @@ function initApp(){
   });
   const wrWindow = document.getElementById('wrWindow');
   if(wrWindow) wrWindow.addEventListener('click', ()=> setTimeout(()=>renderWinRateChart(strategyTrades()), 0));
+  const twSize = document.getElementById('twSize');
+  if(twSize) twSize.addEventListener('click', ()=> setTimeout(()=>renderTimeWindows(strategyTrades()), 0));
   // Filter listeners
-  ['fSymbol','fOutcome','fJournal'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', renderLog); });
+  ['fSymbol','fOutcome','fType','fJournal'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change', renderLog); });
   const fs=$('#fSearch'); if(fs) fs.addEventListener('input', renderLog);
 }
 
