@@ -1563,6 +1563,7 @@ function applyTheme(t, persist){
 }
 window.toggleTheme = function(){ applyTheme(document.documentElement.dataset.theme==='light' ? 'dark' : 'light', true); };
 const openAccounts = new Set();   // account cards currently expanded in the Accounts tab
+let hiddenSectionOpen = false;   // the "Verborgen" group in the Accounts tab
 let offSectionOpen = false;       // the "Uitgezet" group in the Accounts tab
 
 /* ---------- LAZY VIEW RENDERING ----------
@@ -2377,7 +2378,7 @@ function renderAccountPicker(){
   if(!el) return;
   // Accounts you switched off don't appear here at all: they are out of the KPIs,
   // so there is nothing on the dashboard to filter them by.
-  const visible = accounts.filter(a=>!a.excluded_from_stats);
+  const visible = accounts.filter(a=>!a.excluded_from_stats && !a.hidden_from_view);
   if(visible.length===0){
     if(activeAccountId !== 'all') setActiveAccount('all');
     el.innerHTML=''; el.style.display='none'; return;
@@ -4023,6 +4024,7 @@ function renderAccountsView(){
     const ss = syncStates[a.id];
     const isOpen = openAccounts.has(a.id);
     const isOff = !!a.excluded_from_stats;
+    const isHid = !!a.hidden_from_view;
     const parentAcc = a.copy_of ? accounts.find(x=>x.id===a.copy_of) : null;
     const kids = accounts.filter(x=>x.copy_of===a.id);
     const copyTag = parentAcc ? ` · kopie van ${parentAcc.account_label}`
@@ -4043,6 +4045,7 @@ function renderAccountsView(){
         <div class="acct-row-meta">
           ${isLegacy ? '' : `<span class="acct-sync" style="color:${statusColor};" title="Laatste sync: ${lastRun}">●</span>`}
           <span class="acct-row-count">${count} <span>trades</span></span>
+          ${isOff ? '' : `<button type="button" class="btn secondary small" onclick="event.stopPropagation(); toggleAccountHidden('${a.id}')" title="${isHid ? 'Toon dit account weer op het dashboard en bovenaan' : 'Verberg dit account (trades blijven meetellen in je KPI\'s)'}">${isHid ? '👁 Tonen' : '👁 Verbergen'}</button>`}
           <button type="button" class="btn secondary small" onclick="event.stopPropagation(); toggleAccountKpi('${a.id}')" title="${isOff ? 'Telt weer mee in je KPI\'s' : 'Haal dit account uit je KPI\'s (trades blijven zichtbaar in de journal)'}">${isOff ? '⏻ Inschakelen' : '⏻ Uitzetten'}</button>
           <span class="acct-chev">›</span>
         </div>
@@ -4155,10 +4158,16 @@ function renderAccountsView(){
       </div>
     </div>`;
   };
-  const activeList = accounts.filter(a=>!a.excluded_from_stats);
+  const activeList = accounts.filter(a=>!a.excluded_from_stats && !a.hidden_from_view);
+  const hiddenList = accounts.filter(a=>!a.excluded_from_stats && a.hidden_from_view);
   const offList = accounts.filter(a=>a.excluded_from_stats);
   let html = `<div class="acct-section-head"><span>Actief</span><span class="acct-section-count">${activeList.length}</span></div>`;
   html += activeList.length ? activeList.map(cardHtml).join('') : `<div class="acct-empty">Geen actieve accounts — alles staat uit.</div>`;
+  if(hiddenList.length){
+    html += `<div class="acct-section-head clickable${hiddenSectionOpen?' open':''}" onclick="toggleHiddenSection()">
+      <span><span class="acct-chev">›</span> Verborgen — telt wél mee in KPI's</span><span class="acct-section-count">${hiddenList.length}</span></div>`;
+    if(hiddenSectionOpen) html += hiddenList.map(cardHtml).join('');
+  }
   // Switched-off accounts (blown challenges, old evals) are tucked away, collapsed.
   if(offList.length){
     html += `<div class="acct-section-head clickable${offSectionOpen?' open':''}" onclick="toggleOffSection()">
@@ -4172,6 +4181,25 @@ function toggleAccountOpen(id){
   if(openAccounts.has(id)) openAccounts.delete(id); else openAccounts.add(id);
   const card = document.querySelector(`.acct-card[data-acct="${id}"]`);
   if(card) card.classList.toggle('open', openAccounts.has(id));
+}
+function toggleHiddenSection(){ hiddenSectionOpen = !hiddenSectionOpen; renderAccountsView(); }
+// Hiding only removes an account from the dashboard picker and the top of the
+// Accounts tab. Its trades keep counting in every KPI (unlike "Uitzetten").
+async function toggleAccountHidden(accountId){
+  const acc = accounts.find(a=>a.id===accountId);
+  if(!acc) return;
+  const next = !acc.hidden_from_view;
+  try{
+    const { error } = await supabase.from('broker_accounts')
+      .update({ hidden_from_view: next }).eq('id', accountId);
+    if(error) throw error;
+    acc.hidden_from_view = next;
+    showToast(next ? 'Account verborgen — telt nog steeds mee in je KPI\'s' : 'Account is weer zichtbaar ✓');
+    renderAccountsView(); renderAccountPicker(); refreshViews();
+  }catch(e){
+    console.error('toggle hidden failed', e);
+    showToast('Wijzigen mislukt: ' + (e.message||'kolom ontbreekt? draai de migratie'));
+  }
 }
 function toggleOffSection(){ offSectionOpen = !offSectionOpen; renderAccountsView(); }
 
@@ -7101,6 +7129,8 @@ window.saveAccountBalance = saveAccountBalance;
 window.saveCommission = saveCommission;
 window.renameAccount = renameAccount;
 window.toggleAccountKpi = toggleAccountKpi;
+window.toggleAccountHidden = toggleAccountHidden;
+window.toggleHiddenSection = toggleHiddenSection;
 window.logShowMore = logShowMore;
 window.toggleAccountOpen = toggleAccountOpen;
 window.openFinModal = openFinModal;
