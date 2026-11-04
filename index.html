@@ -786,6 +786,26 @@
     .bt-head-name{font-size:17px;}
   }
 
+  .vault-tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
+  .vault-tabs .chip{cursor:pointer;}
+  .vault-tabs .vt-n{opacity:.6; margin-left:4px; font-variant-numeric:tabular-nums;}
+  .shots-head{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px;}
+  .shots-drop{border:1px dashed var(--border); border-radius:12px; padding:14px; text-align:center; font-size:12.5px; color:var(--text-faint); margin-bottom:16px; transition:border-color .15s, background .15s;}
+  .shots-drop.over{border-color:var(--accent); background:var(--accent-dim, rgba(108,184,255,.08));}
+  .shots-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px;}
+  .shot-card{position:relative; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--surface-1); cursor:pointer; transition:transform .15s, border-color .15s;}
+  .shot-card:hover{transform:translateY(-2px); border-color:var(--border-strong);}
+  .shot-card img{display:block; width:100%; aspect-ratio:4/3; object-fit:cover; background:var(--surface-2);}
+  .shot-card .cap{padding:8px 10px; font-size:12px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .shot-card .cap small{display:block; color:var(--text-faint); font-size:10.5px; margin-top:1px;}
+  .shots-empty{grid-column:1/-1; text-align:center; padding:36px 0; color:var(--text-faint); font-size:13px;}
+  .shot-modal{position:fixed; inset:0; z-index:300; background:var(--overlay, rgba(0,0,0,.72)); display:flex; align-items:center; justify-content:center; padding:20px;}
+  .shot-box{position:relative; background:var(--surface-1); border:1px solid var(--border); border-radius:16px; padding:16px; max-width:min(1100px,100%); max-height:100%; display:flex; gap:16px; overflow:auto;}
+  .shot-img-wrap{flex:1; min-width:0; display:flex; align-items:center; justify-content:center; min-height:120px;}
+  .shot-img-wrap img{max-width:100%; max-height:78vh; border-radius:8px; display:block;}
+  .shot-side{width:230px; flex-shrink:0; padding-top:22px;}
+  .shot-side label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:5px;}
+  @media (max-width:760px){ .shot-box{flex-direction:column;} .shot-side{width:auto; padding-top:0;} }
 </style>
 </head>
 <body>
@@ -1004,6 +1024,12 @@
       </div>
     </div>
     <div class="view-body">
+      <div class="vault-tabs" id="vaultTabs">
+        <div class="chip selected" data-tab="overview">Overzicht</div>
+        <div class="chip" data-tab="payout">Payouts <span class="vt-n" id="vtN-payout"></span></div>
+        <div class="chip" data-tab="passed">Gepasseerd <span class="vt-n" id="vtN-passed"></span></div>
+      </div>
+      <div id="vaultOverview">
       <div id="vaultBanner" class="be-warn" style="display:none; margin-bottom:16px;"></div>
       <div id="vaultEmpty" style="display:none;"></div>
 
@@ -1076,6 +1102,36 @@
             <span class="vault-note" id="vaultLedgerCount"></span>
           </div>
           <div class="vault-scroll"><table id="vaultLedger"></table></div>
+        </div>
+      </div>
+      </div>
+
+      <div id="vaultShots" style="display:none;">
+        <div class="shots-head">
+          <div>
+            <h2 id="shotsTitle" style="font-family:var(--f-disp); font-size:18px; margin:0;"></h2>
+            <div class="vault-note" id="shotsCount"></div>
+          </div>
+          <button type="button" class="btn" onclick="document.getElementById('shotsInput').click()">+ Screenshots toevoegen</button>
+          <input type="file" id="shotsInput" accept="image/*" multiple style="display:none;">
+        </div>
+        <div id="shotsDrop" class="shots-drop">Sleep screenshots hierheen, plak ze met Ctrl+V of klik op de knop</div>
+        <div id="shotsGrid" class="shots-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="shotModalBg" class="shot-modal" style="display:none;" onclick="if(event.target===this) closeShot()">
+    <div class="shot-box">
+      <span class="modal-close" onclick="closeShot()">×</span>
+      <div class="shot-img-wrap"><img id="shotImg" alt=""><div id="shotLoading" class="vault-note">Laden…</div></div>
+      <div class="shot-side">
+        <label>Notitie</label>
+        <input type="text" id="shotCaption" maxlength="120" placeholder="bv. Topstep payout oktober">
+        <div class="vault-note" id="shotDate" style="margin:8px 0 14px;"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn small" onclick="saveShotCaption()">Opslaan</button>
+          <button type="button" class="btn secondary small" onclick="deleteShot()" style="color:var(--neg);">Verwijderen</button>
         </div>
       </div>
     </div>
@@ -4229,6 +4285,103 @@ async function saveNewAccount(){
   }catch(e){ console.error('add account failed', e); showToast('Toevoegen mislukt: ' + (e.message||'')); }
   finally{ btn.disabled = false; }
 }
+/* ---------- Vault: screenshots of payouts and passed accounts ----------
+   Images are shrunk in the browser (full ~1600px JPEG + a small thumbnail) and
+   stored as text in the vault_shots table, so no storage bucket is needed. The
+   grid only loads the thumbnails; the full image is fetched when you open one. */
+let vaultTab = 'overview', shotsData = null, shotsMissing = false, openShotId = null;
+const SHOT_TITLES = { payout:'Payouts', passed:'Gepasseerde accounts' };
+async function loadShots(force){
+  if(shotsData && !force) return;
+  const { data, error } = await supabase.from('vault_shots').select('id,kind,caption,thumb,created_at').order('created_at',{ascending:false});
+  if(error){ console.error('shots', error); shotsMissing = true; shotsData = []; return; }
+  shotsMissing = false; shotsData = data || [];
+}
+function updateShotCounts(){
+  ['payout','passed'].forEach(k=>{ const el = document.getElementById('vtN-'+k); if(el) el.textContent = shotsData ? shotsData.filter(s=>s.kind===k).length || '' : ''; });
+}
+async function setVaultTab(tab){
+  vaultTab = tab;
+  document.querySelectorAll('#vaultTabs .chip').forEach(c=>c.classList.toggle('selected', c.dataset.tab===tab));
+  document.getElementById('vaultOverview').style.display = tab==='overview' ? '' : 'none';
+  document.getElementById('vaultShots').style.display = tab==='overview' ? 'none' : '';
+  if(tab==='overview') return;
+  document.getElementById('shotsTitle').textContent = SHOT_TITLES[tab];
+  document.getElementById('shotsGrid').innerHTML = '<div class="shots-empty">Laden…</div>';
+  await loadShots();
+  if(vaultTab===tab) renderShots();
+}
+function renderShots(){
+  updateShotCounts();
+  const grid = document.getElementById('shotsGrid'); if(!grid || vaultTab==='overview') return;
+  if(shotsMissing){ grid.innerHTML = '<div class="shots-empty">De tabel <strong>vault_shots</strong> ontbreekt nog — draai <strong>supabase_migration_vault_shots.sql</strong> in Supabase.</div>'; document.getElementById('shotsCount').textContent=''; return; }
+  const list = shotsData.filter(s=>s.kind===vaultTab);
+  document.getElementById('shotsCount').textContent = list.length + (list.length===1 ? ' screenshot' : ' screenshots');
+  grid.innerHTML = list.length ? list.map(s=>`<div class="shot-card" onclick="openShot('${s.id}')">
+      <img src="${s.thumb}" alt="" loading="lazy">
+      <div class="cap">${s.caption ? escHtml(s.caption) : 'Zonder notitie'}<small>${fmtDate(s.created_at)}</small></div></div>`).join('')
+    : `<div class="shots-empty">Nog geen screenshots — voeg je eerste toe.</div>`;
+}
+function shotResize(img, max, q){
+  const r = Math.min(1, max/Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.max(1,Math.round(img.width*r)); c.height = Math.max(1,Math.round(img.height*r));
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+function shotLoadImage(file){
+  return new Promise((res,rej)=>{ const u = URL.createObjectURL(file); const i = new Image();
+    i.onload = ()=>{ URL.revokeObjectURL(u); res(i); }; i.onerror = ()=>{ URL.revokeObjectURL(u); rej(new Error('Geen geldige afbeelding')); }; i.src = u; });
+}
+async function addShots(files){
+  const list = [...files].filter(f=>f.type && f.type.startsWith('image/'));
+  if(!list.length){ showToast('Kies afbeeldingen (png, jpg…)'); return; }
+  if(vaultTab==='overview') return;
+  let ok = 0;
+  showToast('Uploaden…');
+  try{
+    const userId = (await supabase.auth.getUser()).data.user.id;
+    for(const f of list){
+      try{
+        const img = await shotLoadImage(f);
+        const row = { user_id:userId, kind:vaultTab, image:shotResize(img,1600,0.82), thumb:shotResize(img,420,0.72) };
+        const { error } = await supabase.from('vault_shots').insert(row);
+        if(error) throw error; ok++;
+      }catch(e){ console.error('shot failed', e); if(/vault_shots/.test(e.message||'')){ shotsMissing = true; break; } }
+    }
+  }catch(e){ console.error(e); }
+  await loadShots(true); renderShots();
+  showToast(ok ? ok+(ok===1?' screenshot toegevoegd ✓':' screenshots toegevoegd ✓') : 'Toevoegen mislukt — is de migratie gedraaid?');
+}
+async function openShot(id){
+  const s = shotsData.find(x=>x.id===id); if(!s) return;
+  openShotId = id;
+  document.getElementById('shotCaption').value = s.caption || '';
+  document.getElementById('shotDate').textContent = 'Toegevoegd op ' + fmtDate(s.created_at);
+  const img = document.getElementById('shotImg'), ld = document.getElementById('shotLoading');
+  img.src = s.thumb; img.style.opacity = .6; ld.style.display = 'block';
+  document.getElementById('shotModalBg').style.display = 'flex'; document.body.style.overflow = 'hidden';
+  const { data } = await supabase.from('vault_shots').select('image').eq('id', id).single();
+  if(openShotId===id && data && data.image){ img.src = data.image; }
+  img.style.opacity = 1; ld.style.display = 'none';
+}
+function closeShot(){ openShotId = null; document.getElementById('shotModalBg').style.display = 'none'; document.body.style.overflow = ''; }
+async function saveShotCaption(){
+  const id = openShotId; if(!id) return;
+  const cap = document.getElementById('shotCaption').value.trim();
+  const { error } = await supabase.from('vault_shots').update({ caption: cap || null }).eq('id', id);
+  if(error){ showToast('Opslaan mislukt: ' + error.message); return; }
+  const s = shotsData.find(x=>x.id===id); if(s) s.caption = cap || null;
+  renderShots(); showToast('Notitie opgeslagen ✓'); closeShot();
+}
+async function deleteShot(){
+  const id = openShotId; if(!id) return;
+  if(!confirm('Deze screenshot verwijderen?')) return;
+  const { error } = await supabase.from('vault_shots').delete().eq('id', id);
+  if(error){ showToast('Verwijderen mislukt: ' + error.message); return; }
+  shotsData = shotsData.filter(x=>x.id!==id); closeShot(); renderShots(); showToast('Screenshot verwijderd');
+}
+window.openShot = openShot; window.closeShot = closeShot; window.saveShotCaption = saveShotCaption; window.deleteShot = deleteShot;
+
 function toggleHiddenSection(){ hiddenSectionOpen = !hiddenSectionOpen; renderAccountsView(); }
 // Hiding only removes an account from the dashboard picker and the top of the
 // Accounts tab. Its trades keep counting in every KPI (unlike "Uitzetten").
@@ -7146,6 +7299,16 @@ function initApp(){
   if(vRange) vRange.addEventListener('click', ()=> setTimeout(()=>{ vaultLedgerLimit = 25; renderVault(); }, 0));
   const vKind = document.getElementById('vaultKind');
   if(vKind) vKind.addEventListener('click', ()=> setTimeout(()=>{ vaultLedgerLimit = 25; renderVaultLedger(); }, 0));
+  document.querySelectorAll('#vaultTabs .chip').forEach(c=>c.addEventListener('click', ()=> setVaultTab(c.dataset.tab)));
+  { const inp = document.getElementById('shotsInput'); if(inp) inp.addEventListener('change', ()=>{ addShots(inp.files); inp.value=''; });
+    const dz = document.getElementById('shotsDrop');
+    if(dz){ ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.add('over'); }));
+      ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.remove('over'); }));
+      dz.addEventListener('drop', e=>{ if(e.dataTransfer && e.dataTransfer.files.length) addShots(e.dataTransfer.files); }); }
+    document.addEventListener('paste', e=>{
+      if(vaultTab==='overview' || !document.getElementById('view-vault').classList.contains('active')) return;
+      const files = [...(e.clipboardData?.files||[])]; if(files.length){ e.preventDefault(); addShots(files); } });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape' && openShotId) closeShot(); }); }
   const finAcct = document.getElementById('finAccount');
   if(finAcct) finAcct.addEventListener('change', finPrefillFirm);
   document.addEventListener('keydown', e=>{
