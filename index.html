@@ -1334,7 +1334,7 @@ notitie    alle overige woorden</pre>
         <div class="chips-row" id="mtDir"><div class="chip selected" data-val="long" onclick="manualSetDir('long')">Long</div><div class="chip" data-val="short" onclick="manualSetDir('short')">Short</div></div></div>
     </div>
     <div class="form-row c3" style="margin-bottom:12px;">
-      <div class="field"><label>Aantal contracten</label><input type="number" step="any" min="0" id="mtQty" oninput="manualPreview()"></div>
+      <div class="field"><label>Aantal contracten <span style="color:var(--text-ghost);">(optioneel als je het bruto resultaat invult)</span></label><input type="number" step="any" min="0" id="mtQty" oninput="manualPreview()"></div>
       <div class="field"><label>Entry-prijs</label><input type="number" step="any" id="mtEntry" oninput="manualPreview()"></div>
       <div class="field"><label>Exit-prijs (gemiddeld)</label><input type="number" step="any" id="mtExit" oninput="manualPreview()"></div>
     </div>
@@ -2916,7 +2916,7 @@ function renderLog(){
       ${showAccountCol?`<td><span class="acct-pill" style="--pill:${accountColor(t.accountId)};">${accountLabelFor(t.accountId)}</span></td>`:''}
       <td style="font-weight:600;">${t.symbol}${t.excluded?' <span class="tag" style="font-size:9px; vertical-align:middle;">excl.</span>':''}${dupCopy?' <span class="tag" style="font-size:9px; vertical-align:middle;" title="Kopie van een trade op je hoofdaccount — telt niet dubbel mee">kopie</span>':''}</td>
       <td><span style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'}; font-weight:600;">${t.direction==='long'?'Long':'Short'}</span></td>
-      <td style="color:var(--text-dim);">${t.volume}</td>
+      <td style="color:var(--text-dim);">${t.volume||'—'}</td>
       <td style="font-weight:700; color:${t.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.netPnl)}</td>
       <td style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'—':fmtR(r)}</td>
       <td onclick="event.stopPropagation()"><select class="type-sel ${t.tradeType?'set':''}" onchange="setTradeType('${t.id}', this.value)" aria-label="Trade type"><option value="">—</option><option value="mech"${t.tradeType==='mech'?' selected':''}>Mech model</option><option value="continuation"${t.tradeType==='continuation'?' selected':''}>Continuation</option><option value="amd"${t.tradeType==='amd'?' selected':''}>AMD model</option><option value="judas"${t.tradeType==='judas'?' selected':''}>Judas swing</option><option value="normal"${t.tradeType==='normal'?' selected':''}>Normaal</option></select></td>
@@ -2981,7 +2981,7 @@ function openJournal(tradeId){
   $('#jFacts').innerHTML = `
     <div class="fact"><span class="fact-l">Instrument</span><span class="fact-v">${t.symbol}</span></div>
     <div class="fact"><span class="fact-l">Richting</span><span class="fact-v" style="color:${t.direction==='long'?'var(--pos)':'var(--neg)'};">${t.direction==='long'?'Long':'Short'}</span></div>
-    <div class="fact"><span class="fact-l">Volume</span><span class="fact-v">${t.volume}</span></div>
+    <div class="fact"><span class="fact-l">Volume</span><span class="fact-v">${t.volume||'—'}</span></div>
     <div class="fact"><span class="fact-l">Entry</span><span class="fact-v">${t.openPrice ?? '—'}</span></div>
     <div class="fact"><span class="fact-l">Exit</span><span class="fact-v">${t.closePrice ?? '—'}</span></div>
     <div class="fact"><span class="fact-l">Open</span><span class="fact-v">${fmtDateTime(t.openTime)}</span></div>
@@ -3557,7 +3557,7 @@ async function saveManualTrade(){
   const sel = document.getElementById('mtAccount');
   if(!sel.value) return fail('Kies een account');
   if(!c.symbol) return fail('Vul het instrument in (bv. MNQ)');
-  if(!c.qty || c.qty <= 0) return fail('Vul het aantal contracten in');
+  if((!c.qty || c.qty <= 0) && c.override === null) return fail('Vul het aantal contracten in — of het bruto resultaat zelf');
   if(c.gross === null) return fail(c.pv===null ? 'Onbekend contract — vul het bruto resultaat zelf in' : 'Vul entry- en exitprijs in');
   const openD = new Date(document.getElementById('mtOpen').value), closeD = new Date(document.getElementById('mtClose').value);
   if(isNaN(openD) || isNaN(closeD)) return fail('Vul open- en sluittijd in');
@@ -3585,7 +3585,7 @@ async function saveManualTrade(){
     const long = manualState.dir === 'long';
     const row = {
       user_id:userId, account_id:account.id, source:'manual', external_id:'manual:' + id,
-      symbol:c.symbol.toUpperCase(), direction:manualState.dir, volume:c.qty,
+      symbol:c.symbol.toUpperCase(), direction:manualState.dir, volume:c.qty||0,
       open_time:openD.toISOString(), close_time:closeD.toISOString(),
       open_price: c.entry, close_price: c.exit,
       gross_pnl:c.gross, commission:-c.commission, swap:0, net_pnl:c.net,
