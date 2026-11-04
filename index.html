@@ -444,7 +444,10 @@
   .payoff-bars i{display:block; height:100%; border-radius:3px;}
   .payoff-vals{display:flex; justify-content:space-between; margin-top:7px; font-size:13px; font-weight:600;}
 
-  .type-sel{background:transparent; border:1px solid var(--border); color:var(--text-faint); font-size:12px; padding:5px 8px; border-radius:20px; cursor:pointer; max-width:118px;}
+  .type-sel{background:transparent; border:1px solid var(--border); color:var(--text-faint); font-size:12px; padding:5px 10px; border-radius:20px; cursor:pointer; max-width:170px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit;}
+  .type-menu{position:fixed; z-index:400; background:var(--surface-2); border:1px solid var(--border-strong); border-radius:12px; padding:6px; min-width:180px; box-shadow:0 12px 32px rgba(0,0,0,.35);}
+  .type-menu label{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; font-size:13px; color:var(--text); cursor:pointer;}
+  .type-menu label:hover{background:var(--surface-1);}
   .type-sel.set{color:var(--accent-bright); border-color:var(--accent); background:var(--accent-glow);}
   .tw-summary{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 6px;}
   .tw-summary .tag b{font-weight:600; margin:0 3px;}
@@ -883,7 +886,7 @@
         <h1>Dashboard</h1>
         <div class="sub">Je performance, automatisch berekend uit je trades.</div>
       </div>
-      <div class="topbar-actions"><div class="session-strip" id="sessionStrip" aria-label="Killzones in Brusselse tijd"></div></div>
+      <div class="topbar-actions"><div class="session-strip" id="sessionStrip" aria-label="Sessies in New York-tijd"></div></div>
     </div>
     <div class="view-body">
       <div id="accountPicker"></div>
@@ -1467,7 +1470,7 @@ notitie    alle overige woorden</pre>
 
     <div class="field" style="margin-bottom:18px;">
       <label>Trade type</label>
-      <div class="multiselect" id="jType" data-single="true">
+      <div class="multiselect" id="jType">
         <div class="chip" data-val="mech">Mech model</div>
         <div class="chip" data-val="continuation">Continuation</div>
         <div class="chip" data-val="amd">AMD model</div>
@@ -1936,7 +1939,7 @@ function generateInsights(list){
   }
   dim('Setup/Tag', groupBy(list, t=>t.tags));
   dim('Setup Grade', groupBy(list, t=>t.setupGrade));
-  dim('Trade type', groupBy(list, t=>tradeTypeLabel(t.tradeType)));
+  dim('Trade type', groupBy(list, t=>tradeTypeLabels(t.tradeType)));
   dim('Emotie', groupBy(list, t=>t.emotion));
   dim('Sessie', groupBy(list, t=>sessionOf(t)));
   dim('Instrument', groupBy(list, t=>t.symbol));
@@ -2006,6 +2009,9 @@ function isFiniteNum(v){ return v!==null&&v!==undefined&&!isNaN(v); }
 let tradeTypeMissing = false;
 const TRADE_TYPE_LABELS = { mech:'Mech model', continuation:'Continuation', amd:'AMD model', judas:'Judas swing', normal:'Normaal' };
 function tradeTypeLabel(v){ return TRADE_TYPE_LABELS[v] || ''; }
+// A trade can carry several types; they are stored comma-separated in trade_type.
+function tradeTypeList(v){ return String(v||'').split(',').map(x=>x.trim()).filter(x=>TRADE_TYPE_LABELS[x]); }
+function tradeTypeLabels(v){ return tradeTypeList(v).map(tradeTypeLabel); }
 function journalToDbRow(t){
   return {
     broker_trade_id: t.id,
@@ -2403,40 +2409,37 @@ function switchView(name){
 }
 $$('.navbtn').forEach(b=> b.addEventListener('click', ()=> switchView(b.dataset.view)));
 
-/* ---------- Session strip: ICT killzones, shown in Brussels time ----------
-   The zones are defined in New York time (that is how ICT quotes them) and shifted
-   by the live Brussels-New York difference, so the daylight-saving weeks in
-   March and November stay right. */
+/* ---------- Session strip: Asia / London / New York, in New York time (ET) ----------
+   Times are New York clock times, as ICT quotes them. Nothing is shifted to
+   Brussels; the pin shows the current time in New York. */
 const KILLZONES = [
-  { name:'Asia range',     s:20*60, e:24*60, c:'#8E8CFF' },
-  { name:'London open',    s:2*60,  e:5*60,  c:'#6CB8FF' },
-  { name:'New York open',  s:7*60,  e:10*60, c:'#F2C14E' },
-  { name:'London close',   s:10*60, e:12*60, c:'#FF9F6B' },
+  { name:'Asia',     s:20*60,      e:24*60,      c:'#8E8CFF' },
+  { name:'London',   s:2*60,       e:5*60,       c:'#6CB8FF' },
+  { name:'New York', s:9*60+30,    e:11*60,      c:'#F2C14E' },
 ];
 function renderSessionStrip(){
   const el = $('#sessionStrip'); if(!el) return;
-  const now = new Date();
-  const mins = tz=>{ const p = new Intl.DateTimeFormat('en-GB', { timeZone:tz, hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(now); return (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value); };
-  const bru = mins('Europe/Brussels'), diff = (bru - mins('America/New_York') + 1440) % 1440;
-  const zones = KILLZONES.map(z=>({ ...z, start:(z.s+diff)%1440, len:z.e-z.s }));
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(new Date());
+  const ny = (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value);
+  const zones = KILLZONES.map(z=>({ ...z, start:z.s%1440, len:z.e-z.s }));
   const hm = m=>{ m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
   const dur = m=> m>=60 ? Math.floor(m/60)+'u '+(m%60)+'m' : m+' min';
-  const cur = zones.find(z=> ((bru - z.start + 1440) % 1440) < z.len);
+  const cur = zones.find(z=> ((ny - z.start + 1440) % 1440) < z.len);
   let nowTxt, nextTxt;
   if(cur){
-    const left = cur.len - ((bru - cur.start + 1440) % 1440);
-    nowTxt = cur.name; nextTxt = 'nog ' + dur(left) + ' · tot ' + hm(cur.start + cur.len);
+    const left = cur.len - ((ny - cur.start + 1440) % 1440);
+    nowTxt = cur.name + ' sessie'; nextTxt = 'nog ' + dur(left) + ' · tot ' + hm(cur.start + cur.len) + ' ET';
   } else {
-    const nx = zones.map(z=>({ z, d:(z.start - bru + 1440) % 1440 })).sort((a,b)=>a.d-b.d)[0];
-    nowTxt = 'Buiten killzone'; nextTxt = nx.z.name + ' om ' + hm(nx.z.start) + ' · over ' + dur(nx.d);
+    const nx = zones.map(z=>({ z, d:(z.start - ny + 1440) % 1440 })).sort((a,b)=>a.d-b.d)[0];
+    nowTxt = 'Buiten sessie'; nextTxt = nx.z.name + ' om ' + hm(nx.z.start) + ' ET · over ' + dur(nx.d);
   }
   const segs = zones.map(z=>{
     const on = cur && cur.name===z.name ? ' on' : '';
-    const part = (st, ln)=>`<div class="ss-seg${on}" style="--z:${z.c}; left:${st/14.4}%; width:${ln/14.4}%;" title="${z.name} ${hm(z.start)}–${hm(z.start+z.len)}"></div>`;
+    const part = (st, ln)=>`<div class="ss-seg${on}" style="--z:${z.c}; left:${st/14.4}%; width:${ln/14.4}%;" title="${z.name} ${hm(z.start)}–${hm(z.start+z.len)} ET"></div>`;
     return z.start + z.len > 1440 ? part(z.start, 1440 - z.start) + part(0, z.start + z.len - 1440) : part(z.start, z.len);
   }).join('');
   el.innerHTML = `<div class="ss-text"><div class="ss-now">${nowTxt}</div><div class="ss-next">${nextTxt}</div></div>
-    <div class="ss-bar"><div class="ss-track"></div>${segs}<div class="ss-pin" style="left:${bru/14.4}%;"></div><div class="ss-hours"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>`;
+    <div class="ss-bar"><div class="ss-track"></div>${segs}<div class="ss-pin" style="left:${ny/14.4}%;"></div><div class="ss-hours"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>`;
 }
 renderSessionStrip(); setInterval(renderSessionStrip, 30000);
 
@@ -2670,7 +2673,7 @@ function renderDashboard(){
   renderMoneyBreakdown('gradeTable', groupBy(list, t=>t.setupGrade), ['A+','A','B','C','FOMO']);
   renderMoneyBreakdown('tagTable', groupBy(list, t=>t.tags));
   renderMoneyBreakdown('emotionTable', groupBy(list, t=>t.emotion));
-  renderMoneyBreakdown('typeTable', groupBy(list, t=>tradeTypeLabel(t.tradeType)), ['Mech model','Continuation','AMD model','Judas swing','Normaal']);
+  renderMoneyBreakdown('typeTable', groupBy(list, t=>tradeTypeLabels(t.tradeType)), ['Mech model','Continuation','AMD model','Judas swing','Normaal']);
   renderTimeWindows(list);
   renderMoneyBreakdown('directionTable', groupBy(list, t=>t.direction), ['long','short']);
   if(activeAccountId==='all' && accounts.length>1){
@@ -2943,7 +2946,7 @@ function renderLog(){
     if(logDateFilter && t.date!==logDateFilter) return false;
     if(fSymbol && t.symbol!==fSymbol) return false;
     if(fOutcome && outcomeOf(t)!==fOutcome) return false;
-    if(fType==='none' ? !!t.tradeType : (fType && t.tradeType!==fType)) return false;
+    if(fType==='none' ? tradeTypeList(t.tradeType).length>0 : (fType && !tradeTypeList(t.tradeType).includes(fType))) return false;
     if(fJournal==='yes' && !t.hasJournal) return false;
     if(fJournal==='no' && t.hasJournal) return false;
     if(fJournal==='excluded' && !t.excluded) return false;
@@ -2975,7 +2978,7 @@ function renderLog(){
       <td style="color:var(--text-dim);">${t.volume||'—'}</td>
       <td style="font-weight:700; color:${t.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.netPnl)}</td>
       <td style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'—':fmtR(r)}</td>
-      <td onclick="event.stopPropagation()"><select class="type-sel ${t.tradeType?'set':''}" onchange="setTradeType('${t.id}', this.value)" aria-label="Trade type"><option value="">—</option><option value="mech"${t.tradeType==='mech'?' selected':''}>Mech model</option><option value="continuation"${t.tradeType==='continuation'?' selected':''}>Continuation</option><option value="amd"${t.tradeType==='amd'?' selected':''}>AMD model</option><option value="judas"${t.tradeType==='judas'?' selected':''}>Judas swing</option><option value="normal"${t.tradeType==='normal'?' selected':''}>Normaal</option></select></td>
+      <td onclick="event.stopPropagation()"><button type="button" class="type-sel ${tradeTypeList(t.tradeType).length?'set':''}" onclick="openTypeMenu(event,'${t.id}')" aria-label="Trade type">${tradeTypeList(t.tradeType).length ? escHtml(tradeTypeLabels(t.tradeType).join(' + ')) : '—'}</button></td>
       <td><span class="tag ${o==='Win'?'win':o==='Loss'?'loss':'be'}">${o}</span></td>
       <td>${t.hasJournal?'<span style="color:var(--accent-bright);">✓ Notities</span>':'<span style="color:var(--text-faint);">—</span>'}</td>
       <td style="white-space:nowrap;"><span class="btn secondary small" onclick="event.stopPropagation(); openJournal('${t.id}')">${t.hasJournal?'Bewerk':'+ Journal'}</span></td>
@@ -2987,6 +2990,27 @@ function renderLog(){
   $('#logTable').innerHTML = html;
 }
 /* Quick-set the trade type straight from the Trade Log. */
+function closeTypeMenu(){ const m = document.getElementById('typeMenu'); if(m) m.remove(); }
+function openTypeMenu(ev, tradeId){
+  ev.stopPropagation(); closeTypeMenu();
+  const t = brokerTrades.find(x=>x.id===tradeId); if(!t) return;
+  const btn = ev.currentTarget, r = btn.getBoundingClientRect();
+  const m = document.createElement('div'); m.id = 'typeMenu'; m.className = 'type-menu';
+  const cur = new Set(tradeTypeList(t.tradeType));
+  m.innerHTML = Object.keys(TRADE_TYPE_LABELS).map(k=>`<label><input type="checkbox" value="${k}"${cur.has(k)?' checked':''}> ${TRADE_TYPE_LABELS[k]}</label>`).join('');
+  document.body.appendChild(m);
+  const h = m.offsetHeight, w = m.offsetWidth;
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+  m.style.top = (r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+  m.addEventListener('click', e=>e.stopPropagation());
+  m.addEventListener('change', ()=>{
+    const keys = Object.keys(TRADE_TYPE_LABELS).filter(k=> m.querySelector(`input[value="${k}"]`).checked);
+    setTradeType(tradeId, keys.join(','));
+  });
+}
+document.addEventListener('click', closeTypeMenu);
+window.addEventListener('scroll', closeTypeMenu, true);
+window.openTypeMenu = openTypeMenu;
 async function setTradeType(tradeId, val){
   let t = brokerTrades.find(x=>x.id===tradeId); if(!t) return;
   if(t.isCopy && t.repId){ const rep = brokerTrades.find(x=>x.id===t.repId); if(rep) t = rep; }   // a copy shares its main trade's journal
@@ -2998,8 +3022,8 @@ async function setTradeType(tradeId, val){
     t.tradeType = val || '';
     t.hasJournal = t.hasJournal || !!val;
     computeCopyClusters();
-    showToast(val ? 'Trade type: ' + tradeTypeLabel(val) + ' ✓' : 'Trade type gewist');
-    refreshViews();
+    showToast(val ? 'Trade type: ' + tradeTypeLabels(val).join(' + ') + ' ✓' : 'Trade type gewist');
+    refreshViews(); closeTypeMenu();
   }catch(e){
     console.error('trade type save failed', e);
     showToast(/trade_type/i.test(e.message||'') ? 'Draai eerst supabase_migration_trade_type.sql in Supabase' : 'Opslaan mislukt: '+(e.message||''));
@@ -3064,7 +3088,7 @@ function openJournal(tradeId){
   updateExcludeReasonVisibility();
   ddSetValue('jEmotion', t.emotion || '');
   ddSetValue('jGrade', t.setupGrade || '');
-  setSelectedChips('jType', t.tradeType ? [t.tradeType] : []);
+  setSelectedChips('jType', tradeTypeList(t.tradeType));
   ddSetValue('jFollowedPlan', t.followedPlan===true?'yes':t.followedPlan===false?'no':'');
   // tags (multiselect chips)
   setSelectedChips('jTags', t.tags || []);
@@ -3176,7 +3200,7 @@ async function saveJournal(){
     lessonsLearned: $('#jLessons').value.trim(),
     emotion: ddValue('jEmotion'),
     setupGrade: ddValue('jGrade'),
-    tradeType: getSelectedChips('jType')[0] || '',
+    tradeType: getSelectedChips('jType').join(','),
     followedPlan: fp==='yes'?true:fp==='no'?false:null,
     tags: getSelectedChips('jTags'),
     initialSlPrice: parseNumOrNull($('#jInitialSl').value),
