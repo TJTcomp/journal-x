@@ -1849,14 +1849,16 @@ function computeDayExtremes(list){
   });
   return { best, worst, byDay };
 }
+const _nyFmt = new Intl.DateTimeFormat('en-GB', { timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+// Sessions in New York time, the same windows as the strip: Asia 18:00–03:00,
+// London 03:00–09:30, New York 09:30–18:00 (the rest of the futures day).
 function sessionOf(t){
   const iso = t.closeTime||t.openTime; if(!iso) return 'Unknown';
-  const h = new Date(iso).getUTCHours();
-  // Standard forex/ICT sessions in UTC. Asia opens in the evening and runs
-  // through the night, so the late hours (>=21:00) belong to Asia, not a
-  // separate 'Late' bucket.
-  if(h >= 21 || h < 7) return 'Asia';
-  if(h < 12) return 'London';
+  const d = new Date(iso); if(isNaN(d)) return 'Unknown';
+  const p = _nyFmt.formatToParts(d);
+  const m = (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value);
+  if(m >= 18*60 || m < 3*60) return 'Asia';
+  if(m < 9*60+30) return 'London';
   return 'New York';
 }
 function computeRStats(list){
@@ -2413,9 +2415,9 @@ $$('.navbtn').forEach(b=> b.addEventListener('click', ()=> switchView(b.dataset.
    Times are New York clock times, as ICT quotes them. Nothing is shifted to
    Brussels; the pin shows the current time in New York. */
 const KILLZONES = [
-  { name:'Asia',     s:20*60,      e:24*60,      c:'#8E8CFF' },
-  { name:'London',   s:2*60,       e:5*60,       c:'#6CB8FF' },
-  { name:'New York', s:9*60+30,    e:11*60,      c:'#F2C14E' },
+  { name:'Asia',     s:18*60,      e:27*60,      c:'#8E8CFF' },   // 18:00–03:00 ET (futures reopen at 18:00)
+  { name:'London',   s:3*60,       e:9*60+30,    c:'#6CB8FF' },   // 03:00–09:30 ET
+  { name:'New York', s:9*60+30,    e:11*60,      c:'#F2C14E' },   // 09:30–11:00 ET
 ];
 function renderSessionStrip(){
   const el = $('#sessionStrip'); if(!el) return;
