@@ -964,7 +964,7 @@
       <div class="filterbar">
         <select id="fSymbol"><option value="">Alle instrumenten</option></select>
         <select id="fOutcome"><option value="">Alle resultaten</option><option value="Win">Win</option><option value="Loss">Loss</option><option value="BE">Breakeven</option></select>
-        <select id="fType"><option value="">Alle types</option><option value="mech">Mech model</option><option value="continuation">Continuation</option><option value="normal">Normaal</option><option value="none">Type niet ingevuld</option></select>
+        <select id="fType"><option value="">Alle types</option><option value="mech">Mech model</option><option value="continuation">Continuation</option><option value="amd">AMD model</option><option value="judas">Judas swing</option><option value="normal">Normaal</option><option value="none">Type niet ingevuld</option></select>
         <select id="fJournal"><option value="">Journal: alle</option><option value="yes">Met notities</option><option value="no">Zonder notities</option><option value="excluded">Uitgesloten trades</option></select>
         <input type="text" id="fSearch" placeholder="Zoek in notities/tags…" style="flex:1; min-width:140px;">
       </div>
@@ -1193,9 +1193,21 @@ notitie    alle overige woorden</pre>
         <h1>Broker Accounts</h1>
         <div class="sub">Je gekoppelde MT5-accounts en hun sync-status.</div>
       </div>
-      <div class="topbar-actions"><button type="button" class="btn secondary small" onclick="toggleTheme()">Donker / licht</button></div>
+      <div class="topbar-actions"><button type="button" class="btn small" onclick="toggleAddAccount()">+ Account toevoegen</button><button type="button" class="btn secondary small" onclick="toggleTheme()">Donker / licht</button></div>
     </div>
     <div class="view-body">
+      <div class="panel" id="addAccountPanel" style="display:none; margin-bottom:12px;">
+        <h2>Nieuw account</h2>
+        <div class="form-row c2" style="margin-bottom:14px;">
+          <div class="field"><label>Naam</label><input type="text" id="newAccName" placeholder="bv. Topstep 50K" maxlength="60"></div>
+          <div class="field"><label>Accountbalans ($)</label><input type="number" step="any" min="0" id="newAccBalance" placeholder="bv. 50000"></div>
+          <div class="field"><label>Commissie per contract ($)</label><input type="number" step="0.01" min="0" id="newAccComm" placeholder="bv. 1.22"></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn small" id="newAccSave" onclick="saveNewAccount()">Account opslaan</button>
+          <button type="button" class="btn secondary small" onclick="toggleAddAccount(false)">Annuleren</button>
+        </div>
+      </div>
       <div id="accountsList"></div>
       <div class="panel" style="margin-top:8px;">
         <h2>Trades importeren uit CSV</h2>
@@ -1402,6 +1414,8 @@ notitie    alle overige woorden</pre>
       <div class="multiselect" id="jType" data-single="true">
         <div class="chip" data-val="mech">Mech model</div>
         <div class="chip" data-val="continuation">Continuation</div>
+        <div class="chip" data-val="amd">AMD model</div>
+        <div class="chip" data-val="judas">Judas swing</div>
         <div class="chip" data-val="normal">Normaal</div>
       </div>
     </div>
@@ -1934,7 +1948,7 @@ function journalHasContent(journal, hasShots){
 }
 function isFiniteNum(v){ return v!==null&&v!==undefined&&!isNaN(v); }
 let tradeTypeMissing = false;
-const TRADE_TYPE_LABELS = { mech:'Mech model', continuation:'Continuation', normal:'Normaal' };
+const TRADE_TYPE_LABELS = { mech:'Mech model', continuation:'Continuation', amd:'AMD model', judas:'Judas swing', normal:'Normaal' };
 function tradeTypeLabel(v){ return TRADE_TYPE_LABELS[v] || ''; }
 function journalToDbRow(t){
   return {
@@ -2600,7 +2614,7 @@ function renderDashboard(){
   renderMoneyBreakdown('gradeTable', groupBy(list, t=>t.setupGrade), ['A+','A','B','C','FOMO']);
   renderMoneyBreakdown('tagTable', groupBy(list, t=>t.tags));
   renderMoneyBreakdown('emotionTable', groupBy(list, t=>t.emotion));
-  renderMoneyBreakdown('typeTable', groupBy(list, t=>tradeTypeLabel(t.tradeType)), ['Mech model','Continuation','Normaal']);
+  renderMoneyBreakdown('typeTable', groupBy(list, t=>tradeTypeLabel(t.tradeType)), ['Mech model','Continuation','AMD model','Judas swing','Normaal']);
   renderTimeWindows(list);
   renderMoneyBreakdown('directionTable', groupBy(list, t=>t.direction), ['long','short']);
   if(activeAccountId==='all' && accounts.length>1){
@@ -2905,7 +2919,7 @@ function renderLog(){
       <td style="color:var(--text-dim);">${t.volume}</td>
       <td style="font-weight:700; color:${t.netPnl>=0?'var(--pos)':'var(--neg)'};">${fmtMoneySigned(t.netPnl)}</td>
       <td style="color:${r===null?'var(--text-faint)':(r>=0?'var(--pos)':'var(--neg)')};">${r===null?'—':fmtR(r)}</td>
-      <td onclick="event.stopPropagation()"><select class="type-sel ${t.tradeType?'set':''}" onchange="setTradeType('${t.id}', this.value)" aria-label="Trade type"><option value="">—</option><option value="mech"${t.tradeType==='mech'?' selected':''}>Mech model</option><option value="continuation"${t.tradeType==='continuation'?' selected':''}>Continuation</option><option value="normal"${t.tradeType==='normal'?' selected':''}>Normaal</option></select></td>
+      <td onclick="event.stopPropagation()"><select class="type-sel ${t.tradeType?'set':''}" onchange="setTradeType('${t.id}', this.value)" aria-label="Trade type"><option value="">—</option><option value="mech"${t.tradeType==='mech'?' selected':''}>Mech model</option><option value="continuation"${t.tradeType==='continuation'?' selected':''}>Continuation</option><option value="amd"${t.tradeType==='amd'?' selected':''}>AMD model</option><option value="judas"${t.tradeType==='judas'?' selected':''}>Judas swing</option><option value="normal"${t.tradeType==='normal'?' selected':''}>Normaal</option></select></td>
       <td><span class="tag ${o==='Win'?'win':o==='Loss'?'loss':'be'}">${o}</span></td>
       <td>${t.hasJournal?'<span style="color:var(--accent-bright);">✓ Notities</span>':'<span style="color:var(--text-faint);">—</span>'}</td>
       <td style="white-space:nowrap;"><span class="btn secondary small" onclick="event.stopPropagation(); openJournal('${t.id}')">${t.hasJournal?'Bewerk':'+ Journal'}</span></td>
@@ -3677,11 +3691,14 @@ let csvState = { headers:[], rows:[], map:null, fileName:'', kind:'perf' };
    Matching on a typed name meant one stray character silently created a second
    account. Picking from the accounts you already have removes that whole class
    of mistake; creating a new one is now a deliberate choice. */
+function lastImportAccountId(){ try{ return localStorage.getItem('journalx.lastImportAccount') || ''; }catch(e){ return ''; } }
+function rememberImportAccount(id){ try{ localStorage.setItem('journalx.lastImportAccount', id); }catch(e){} }
 function renderCsvAccountPicker(){
   const sel = document.getElementById('csvAccountSelect');
   if(!sel) return;
   const previous = sel.value;
-  const importable = accounts.filter(a => a.broker_type !== 'manual_legacy');
+  // Switched-off and hidden accounts are no longer an import target.
+  const importable = accounts.filter(a => a.broker_type !== 'manual_legacy' && !a.excluded_from_stats && !a.hidden_from_view);
   sel.innerHTML =
     importable.map(a=>{
       const count = brokerTrades.filter(t=>t.accountId===a.id).length;
@@ -3691,6 +3708,7 @@ function renderCsvAccountPicker(){
   // Keep the previous choice if it still exists, else prefer the account you're
   // currently looking at, else the first one.
   if(previous && [...sel.options].some(o=>o.value===previous)) sel.value = previous;
+  else if(lastImportAccountId() && importable.some(a=>a.id===lastImportAccountId())) sel.value = lastImportAccountId();
   else if(activeAccountId !== 'all' && importable.some(a=>a.id===activeAccountId)) sel.value = activeAccountId;
   updateCsvAccountFields();
 }
@@ -3928,6 +3946,7 @@ async function doCsvImport(){
       if(error) throw error;
     }
 
+    rememberImportAccount(account.id);
     await loadAll();
     const after = brokerTrades.filter(t=>t.accountId===account.id).length;
     const added = after - before;
@@ -4182,6 +4201,34 @@ function toggleAccountOpen(id){
   const card = document.querySelector(`.acct-card[data-acct="${id}"]`);
   if(card) card.classList.toggle('open', openAccounts.has(id));
 }
+function toggleAddAccount(force){
+  const p = document.getElementById('addAccountPanel'); if(!p) return;
+  const show = typeof force === 'boolean' ? force : p.style.display === 'none';
+  p.style.display = show ? 'block' : 'none';
+  if(show) setTimeout(()=>document.getElementById('newAccName')?.focus(), 30);
+}
+async function saveNewAccount(){
+  const name = (document.getElementById('newAccName').value || '').trim();
+  if(!name){ showToast('Geef het account een naam'); return; }
+  if(accounts.some(a=>a.account_label.toLowerCase()===name.toLowerCase())){ showToast('Er bestaat al een account met deze naam'); return; }
+  const num = id => { const v = parseFloat(String(document.getElementById(id).value).replace(',','.')); return isFinite(v) && v>0 ? v : null; };
+  const bal = num('newAccBalance'), comm = num('newAccComm');
+  const btn = document.getElementById('newAccSave'); btn.disabled = true;
+  try{
+    const userId = (await supabase.auth.getUser()).data.user.id;
+    const { data, error } = await supabase.from('broker_accounts').insert({
+      user_id:userId, broker_type:'tradovate', account_label:name, external_account_id:'manual:'+name,
+      account_currency:'USD', connection_status:'connected', be_threshold_pct:DEFAULT_BE_PCT,
+      ...(bal ? { balance:bal } : {}), ...(comm ? { commission_per_contract:comm } : {}),
+    }).select().single();
+    if(error) throw error;
+    ['newAccName','newAccBalance','newAccComm'].forEach(i=>document.getElementById(i).value='');
+    toggleAddAccount(false);
+    await loadAll();
+    showToast('Account toegevoegd ✓');
+  }catch(e){ console.error('add account failed', e); showToast('Toevoegen mislukt: ' + (e.message||'')); }
+  finally{ btn.disabled = false; }
+}
 function toggleHiddenSection(){ hiddenSectionOpen = !hiddenSectionOpen; renderAccountsView(); }
 // Hiding only removes an account from the dashboard picker and the top of the
 // Accounts tab. Its trades keep counting in every KPI (unlike "Uitzetten").
@@ -4195,7 +4242,7 @@ async function toggleAccountHidden(accountId){
     if(error) throw error;
     acc.hidden_from_view = next;
     showToast(next ? 'Account verborgen — telt nog steeds mee in je KPI\'s' : 'Account is weer zichtbaar ✓');
-    renderAccountsView(); renderAccountPicker(); refreshViews();
+    renderAccountsView(); renderAccountPicker(); renderCsvAccountPicker(); refreshViews();
   }catch(e){
     console.error('toggle hidden failed', e);
     showToast('Wijzigen mislukt: ' + (e.message||'kolom ontbreekt? draai de migratie'));
@@ -4267,7 +4314,7 @@ async function toggleAccountKpi(accountId){
     if(error) throw error;
     acc.excluded_from_stats = next;
     showToast(next ? 'Account uitgezet voor KPI\'s' : 'Account telt weer mee in je KPI\'s ✓');
-    renderAccountsView(); renderAccountPicker(); refreshViews();
+    renderAccountsView(); renderAccountPicker(); renderCsvAccountPicker(); refreshViews();
   }catch(e){
     console.error('toggle kpi failed', e);
     showToast('Wijzigen mislukt: ' + (e.message||'kolom ontbreekt? draai de migratie'));
@@ -7129,6 +7176,8 @@ window.saveAccountBalance = saveAccountBalance;
 window.saveCommission = saveCommission;
 window.renameAccount = renameAccount;
 window.toggleAccountKpi = toggleAccountKpi;
+window.toggleAddAccount = toggleAddAccount;
+window.saveNewAccount = saveNewAccount;
 window.toggleAccountHidden = toggleAccountHidden;
 window.toggleHiddenSection = toggleHiddenSection;
 window.logShowMore = logShowMore;
