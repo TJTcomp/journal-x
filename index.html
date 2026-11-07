@@ -402,6 +402,8 @@
   .ss-text{display:flex; flex-direction:column; gap:1px; min-width:130px;}
   .ss-now{font-size:13px; font-weight:600; color:var(--text);}
   .ss-next{font-size:11.5px; color:var(--text-faint);}
+  .session-strip.closed .ss-seg{opacity:.18;}
+  .session-strip.closed .ss-now{color:var(--text-dim);}
   .ss-bar{position:relative; width:230px; height:36px;}
   .ss-track{position:absolute; left:0; right:0; top:11px; height:8px; border-radius:4px; background:var(--surface-2);}
   .ss-seg{position:absolute; top:11px; height:8px; border-radius:4px; background:var(--z); opacity:.55;}
@@ -459,6 +461,7 @@
   .cal-title{font-family:var(--f-disp); font-weight:600; font-size:19px; letter-spacing:-0.4px; margin-left:6px; text-transform:capitalize;}
   .cal-month{text-align:right;}
   .cal-month .l{font-size:12px; color:var(--text-faint);}
+  .cal-month .cal-wr{font-size:12px; color:var(--text-faint); margin-top:2px; font-variant-numeric:tabular-nums;}
   .cal-month .v{font-family:var(--f-disp); font-size:22px; font-weight:650; letter-spacing:-0.6px;}
   .cal-grid{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)) minmax(0,1.05fr); gap:6px;}
   .cal-dow{text-align:center; font-size:12px; color:var(--text-faint); padding:2px 0 4px; font-weight:500;}
@@ -1850,14 +1853,14 @@ function computeDayExtremes(list){
   return { best, worst, byDay };
 }
 const _nyFmt = new Intl.DateTimeFormat('en-GB', { timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
-// Sessions in New York time, the same windows as the strip: Asia 18:00–03:00,
-// London 03:00–09:30, New York 09:30–18:00 (the rest of the futures day).
+// Sessions in New York time, the same windows as the strip: Asia from the Tokyo
+// open (19:00 ET in winter) to 03:00, London 03:00–09:30, New York 09:30 until Asia opens.
 function sessionOf(t){
   const iso = t.closeTime||t.openTime; if(!iso) return 'Unknown';
   const d = new Date(iso); if(isNaN(d)) return 'Unknown';
   const p = _nyFmt.formatToParts(d);
   const m = (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value);
-  if(m >= 18*60 || m < 3*60) return 'Asia';
+  if(m >= asiaStartNY(d) || m < 3*60) return 'Asia';
   if(m < 9*60+30) return 'London';
   return 'New York';
 }
@@ -2414,27 +2417,40 @@ $$('.navbtn').forEach(b=> b.addEventListener('click', ()=> switchView(b.dataset.
 /* ---------- Session strip: Asia / London / New York, in New York time (ET) ----------
    Times are New York clock times, as ICT quotes them. Nothing is shifted to
    Brussels; the pin shows the current time in New York. */
+const _nyParts = new Intl.DateTimeFormat('en-GB', { timeZone:'America/New_York', weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+const _nyMin = d=>{ const p = _nyParts.formatToParts(d); return (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value); };
+// Tokyo opens at 09:00 JST = 00:00 UTC = 19:00 ET in winter (01:00 Brussels), 20:00 ET in summer.
+function asiaStartNY(d){ return _nyMin(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0))); }
 const KILLZONES = [
-  { name:'Asia',     s:18*60,      e:27*60,      c:'#8E8CFF' },   // 18:00–03:00 ET (futures reopen at 18:00)
+  { name:'Asia',     e:27*60,      c:'#8E8CFF' },   // Tokyo open → 03:00 ET
   { name:'London',   s:3*60,       e:9*60+30,    c:'#6CB8FF' },   // 03:00–09:30 ET
   { name:'New York', s:9*60+30,    e:11*60,      c:'#F2C14E' },   // 09:30–11:00 ET
 ];
+// CME futures are closed from Friday 17:00 ET until Sunday 18:00 ET.
+function marketClosedInfo(d){
+  const dow = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(_nyParts.formatToParts(d).find(x=>x.type==='weekday').value);
+  const w = dow*1440 + _nyMin(d), reopen = 6*1440 + 18*60;
+  return (w >= 4*1440+17*60 && w < reopen) ? { closed:true, minsToOpen: reopen - w } : { closed:false };
+}
 function renderSessionStrip(){
   const el = $('#sessionStrip'); if(!el) return;
-  const p = new Intl.DateTimeFormat('en-GB', { timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(new Date());
-  const ny = (+p.find(x=>x.type==='hour').value)*60 + (+p.find(x=>x.type==='minute').value);
-  const zones = KILLZONES.map(z=>({ ...z, start:z.s%1440, len:z.e-z.s }));
+  const now = new Date();
+  const ny = _nyMin(now), mc = marketClosedInfo(now);
+  const zones = KILLZONES.map(z=>{ const s = z.s !== undefined ? z.s : asiaStartNY(now); return { ...z, start:s%1440, len:z.e-s }; });
   const hm = m=>{ m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
-  const dur = m=> m>=60 ? Math.floor(m/60)+'u '+(m%60)+'m' : m+' min';
-  const cur = zones.find(z=> ((ny - z.start + 1440) % 1440) < z.len);
+  const dur = m=> m>=1440 ? Math.floor(m/1440)+'d '+Math.floor((m%1440)/60)+'u' : m>=60 ? Math.floor(m/60)+'u '+(m%60)+'m' : m+' min';
+  const cur = mc.closed ? null : zones.find(z=> ((ny - z.start + 1440) % 1440) < z.len);
   let nowTxt, nextTxt;
-  if(cur){
+  if(mc.closed){
+    nowTxt = 'Markt gesloten'; nextTxt = 'Opent zondag 18:00 ET · over ' + dur(mc.minsToOpen);
+  } else if(cur){
     const left = cur.len - ((ny - cur.start + 1440) % 1440);
     nowTxt = cur.name + ' sessie'; nextTxt = 'nog ' + dur(left) + ' · tot ' + hm(cur.start + cur.len) + ' ET';
   } else {
     const nx = zones.map(z=>({ z, d:(z.start - ny + 1440) % 1440 })).sort((a,b)=>a.d-b.d)[0];
     nowTxt = 'Buiten sessie'; nextTxt = nx.z.name + ' om ' + hm(nx.z.start) + ' ET · over ' + dur(nx.d);
   }
+  el.classList.toggle('closed', mc.closed);
   const segs = zones.map(z=>{
     const on = cur && cur.name===z.name ? ' on' : '';
     const part = (st, ln)=>`<div class="ss-seg${on}" style="--z:${z.c}; left:${st/14.4}%; width:${ln/14.4}%;" title="${z.name} ${hm(z.start)}–${hm(z.start+z.len)} ET"></div>`;
@@ -4723,6 +4739,12 @@ function renderCalendar(){
   const daysInMonth=new Date(year,month+1,0).getDate();
   let monthPnl=0; Object.keys(byDate).forEach(d=>{ if(d.startsWith(`${year}-${pad2(month+1)}`)) byDate[d].forEach(t=>monthPnl+=t.netPnl); });
 
+  const monthTrades = [];
+  Object.keys(byDate).forEach(d=>{ if(d.startsWith(`${year}-${pad2(month+1)}`)) monthTrades.push(...byDate[d]); });
+  const ms = computeStats(monthTrades);
+  const wrTxt = ms.decidedCount
+    ? `<span style="color:${ms.winRate>=50?'var(--pos)':'var(--neg)'}; font-weight:600;">${ms.winRate.toFixed(0)}%</span> winrate · ${ms.wins}W / ${ms.losses}L${ms.be?` / ${ms.be}BE`:''}`
+    : (monthTrades.length ? 'Winrate —' : '');
   const dayNames=['Ma','Di','Wo','Do','Vr','Za','Zo'];
 
   // Build the day cells first, then chunk them into weeks so each row can carry
@@ -4764,7 +4786,7 @@ function renderCalendar(){
         <span class="btn secondary small" onclick="calNext()" role="button" aria-label="Volgende maand">›</span>
         <span class="cal-title">${monthNames[month]} ${year}</span>
       </div>
-      <div class="cal-month"><div class="l">Resultaat deze maand</div><div class="v" style="color:${monthPnl>0?'var(--pos)':monthPnl<0?'var(--neg)':'var(--text)'};">${fmtMoneySigned(monthPnl)}</div></div>
+      <div class="cal-month"><div class="l">Resultaat deze maand</div><div class="v" style="color:${monthPnl>0?'var(--pos)':monthPnl<0?'var(--neg)':'var(--text)'};">${fmtMoneySigned(monthPnl)}</div><div class="cal-wr">${wrTxt}</div></div>
     </div>
     <div class="cal-grid">`;
 
