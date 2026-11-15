@@ -6441,7 +6441,7 @@ async function btPersistSession(s, fields){
 }
 
 /* ---------- body ---------- */
-function btDestroyCharts(){ ['btEq','btDD','btHist','btPeriod','btMC','btSim','btCmpEq','btCmpNet'].forEach(id=>{ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }); }
+function btDestroyCharts(){ ['btEq','btDD','btHist','btPeriod','btMC','btSim','btCmpEq','btCmpNet','btCmpTime','btMCall'].forEach(id=>{ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }); }
 function btTile(label, value, cls, sub, tip){
   return `<div class="kpi"${tip?` title="${escHtml(tip)}"`:''}><div class="label">${label}</div><div class="value ${cls||'neutral'}">${value}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
 }
@@ -6718,22 +6718,26 @@ function btGetMc(s, S){
   return btMcCache.mc;
 }
 function btRenderMc(s, S, MC){
-  const el = $('#btMcPanel'); if(!el) return;
-  const U = s.unit;
-  if(!MC){ el.innerHTML = `<h2>Monte Carlo</h2><div class="desc">Met minstens 10 trades trekt het systeem duizend keer opnieuw uit jouw resultaten om te zien hoe groot het geluk-en-pech-effect is.</div><div class="bt-note">Nog te weinig trades (${S.n}).</div>`; return; }
-  el.innerHTML = `<h2>Monte Carlo <span style="font-weight:400; color:var(--text-faint); font-size:12px;">(${MC.sims} simulaties)</span></h2>
-    <div class="desc">Het systeem trekt ${MC.n} trades, ${MC.sims} keer, willekeurig uit je eigen resultaten. Zo zie je hoe je backtest kon lopen met meer of minder geluk.</div>
-    <div style="height:200px;"><canvas id="btMC" role="img" aria-label="Monte Carlo waaier van mogelijke equity-curves"></canvas></div>
+  btMcRender($('#btMcPanel'), s.unit, MC, 'btMC', 'btMC', 'Het systeem trekt '+(MC?MC.n:0)+' trades, '+(MC?MC.sims:0)+' keer, willekeurig uit je eigen resultaten. Zo zie je hoe je backtest kon lopen met meer of minder geluk.');
+}
+// Draws a Monte Carlo panel into `el`. Used per session and for the overview (all sessions together).
+function btMcRender(el, U, MC, canvasId, chartKey, desc, title){
+  if(!el) return;
+  title = title || 'Monte Carlo';
+  if(!MC){ el.innerHTML = `<h2>${title}</h2><div class="desc">Met minstens 10 trades trekt het systeem duizend keer opnieuw uit jouw resultaten om te zien hoe groot het geluk-en-pech-effect is.</div><div class="bt-note">Nog te weinig trades.</div>`; return; }
+  el.innerHTML = `<h2>${title} <span style="font-weight:400; color:var(--text-faint); font-size:12px;">(${MC.sims} simulaties)</span></h2>
+    <div class="desc">${desc}</div>
+    <div style="height:200px;"><canvas id="${canvasId}" role="img" aria-label="Monte Carlo waaier van mogelijke equity-curves"></canvas></div>
     <div class="bt-mc">
       <div><div class="l">Kans op winst</div><div class="v ${MC.pProfit>=70?'pos-txt':MC.pProfit<50?'neg-txt':''}">${MC.pProfit.toFixed(0)}%</div><div class="s">van de ${MC.sims} runs eindigt positief</div></div>
       <div><div class="l">Typisch eindresultaat</div><div class="v">${btFmt(MC.finalP50,U,true)}</div><div class="s">bandbreedte ${btFmt(MC.finalP5,U,true)} tot ${btFmt(MC.finalP95,U,true)}</div></div>
       <div><div class="l">Typische max drawdown</div><div class="v">${btFmt(-MC.ddP50,U)}</div><div class="s">de helft van de runs blijft hieronder</div></div>
       <div><div class="l">Pech-scenario (95%)</div><div class="v neg-txt">${btFmt(-MC.ddP95,U)}</div><div class="s">in 1 op 20 runs is de drawdown groter</div></div>
     </div>`;
-  const cv = document.getElementById('btMC'); if(typeof Chart==='undefined' || !cv) return;
+  const cv = document.getElementById(canvasId); if(typeof Chart==='undefined' || !cv) return;
   const F = MC.fan;
   const pt = arr=>[{ x:0, y:0 }].concat(arr.map((y,i)=>({ x:F.x[i], y:Math.round(y*1e3)/1e3 })));
-  charts.btMC = new Chart(cv, {
+  charts[chartKey] = new Chart(cv, {
     type:'line',
     data:{ datasets:[
       { label:'Pech (5%)', data:pt(F.p5), parsing:false, borderColor:TH.a('neg',0.7), borderWidth:1.2, pointRadius:0, tension:0.2, fill:false },
@@ -6860,6 +6864,106 @@ function btSetTradeFilter(f){ btTradeFilter = f; btTradeLimit = 50; btRenderTrad
 function btTradesMore(){ btTradeLimit += 100; btRenderTrades(); }
 
 /* ---------- overview (all sessions side by side) ---------- */
+/* ---------- Overview: result over time ----------
+   All sessions together on one calendar axis (result on the left, date at the bottom),
+   so years from other sessions line up and you can see in which months the strategy earned. */
+let btTimeMode = 'cum', btTimeCtx = null, btMcAllCache = { key:'', mc:null };
+const BT_MON_NL = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+function btTs(date, time){
+  const d = String(date||'').slice(0,10).split('-').map(Number); if(d.length<3 || !d[0]) return null;
+  const t = String(time||'').split(':').map(Number);
+  return Date.UTC(d[0], d[1]-1, d[2], t[0]||0, t[1]||0, t[2]||0);
+}
+function btTimeData(plotRows){
+  const trades = []; let undated = 0;
+  plotRows.forEach(r=> btTradesOf(r.s.id).forEach(t=>{ const ts = btTs(t.date, t.time); if(ts===null){ undated++; return; } trades.push({ ts, v:t.result, cls:t.cls }); }));
+  trades.sort((a,b)=>a.ts-b.ts);
+  return { trades, undated };
+}
+function btTimeTicks(t0, t1){
+  const DAY = 864e5, span = (t1 - t0)/DAY, ticks = [];
+  if(span <= 62){
+    const step = span<=16 ? 2 : 7;
+    for(let t=t0; t<=t1; t+=step*DAY) ticks.push({ v:t, l:new Date(t).getUTCDate()+' '+BT_MON_NL[new Date(t).getUTCMonth()] });
+    return ticks;
+  }
+  const ms = span/30.4, step = ms<=10 ? 1 : ms<=20 ? 2 : ms<=36 ? 3 : ms<=72 ? 6 : 12;
+  const d0 = new Date(t0); let y = d0.getUTCFullYear(), m = d0.getUTCMonth();
+  if(Date.UTC(y,m,1) < t0) m++;
+  while(m % step) m++;                                   // align to the step (jan, apr, jul… / jan, jul)
+  for(;; m+=step){
+    const t = Date.UTC(y, m, 1); if(t > t1) break;
+    const yy = new Date(t).getUTCFullYear(), mm = new Date(t).getUTCMonth();
+    ticks.push({ v:t, l: (step>=12 || mm===0) ? String(yy) : BT_MON_NL[mm] });
+  }
+  return ticks;
+}
+function btMonthRows(trades){
+  if(!trades.length) return [];
+  const map = new Map();
+  trades.forEach(t=>{ const d = new Date(t.ts), k = d.getUTCFullYear()*12 + d.getUTCMonth(); let o = map.get(k); if(!o){ o = { k, net:0, n:0, w:0, l:0 }; map.set(k,o); } o.net += t.v; o.n++; if(t.cls==='win') o.w++; else if(t.cls==='loss') o.l++; });
+  const keys = [...map.keys()], lo = Math.min(...keys), hi = Math.max(...keys), rows = [];
+  for(let k=lo;k<=hi;k++){ const o = map.get(k) || { k, net:0, n:0, w:0, l:0 }; o.y = Math.floor(k/12); o.m = k%12; rows.push(o); }
+  return rows;
+}
+function btSetTimeMode(m){
+  btTimeMode = m;
+  document.querySelectorAll('#btTimeChips .chip').forEach(c=>c.classList.toggle('selected', c.dataset.m===m));
+  btDrawTime();
+}
+function btRenderTimePanel(el, U, td){
+  if(!el) return;
+  btTimeCtx = { U, td, months:btMonthRows(td.trades) };
+  const M = btTimeCtx.months.filter(r=>r.n>0);
+  const win = M.filter(r=>r.net>0).length;
+  const best = M.length ? M.reduce((a,r)=>r.net>a.net?r:a) : null, worst = M.length ? M.reduce((a,r)=>r.net<a.net?r:a) : null;
+  const lab = r=>BT_MON_NL[r.m]+" ’"+String(r.y).slice(2);
+  const avg = M.length ? M.reduce((a,r)=>a+r.net,0)/M.length : null;
+  el.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div><h2>Resultaat in de tijd</h2><div class="desc" style="margin-bottom:0;">Alle sessies samen op één tijdlijn: links je resultaat in ${BT_UNIT_CHIP[U]}, onderaan de datum. Zo zie je in welke jaren en maanden je strategie geld verdiende.</div></div>
+      <div class="chips-row" id="btTimeChips"><div class="chip${btTimeMode==='cum'?' selected':''}" data-m="cum" onclick="btSetTimeMode('cum')">Cumulatief</div><div class="chip${btTimeMode==='month'?' selected':''}" data-m="month" onclick="btSetTimeMode('month')">Per maand</div></div>
+    </div>
+    <div style="height:260px; margin-top:14px;"><canvas id="btCmpTime" role="img" aria-label="Resultaat in de tijd"></canvas></div>
+    ${M.length ? `<div class="tw-summary">
+      <span class="tag">Winstgevende maanden <b>${win}/${M.length}</b></span>
+      <span class="tag win">Beste: <b>${lab(best)}</b> ${btFmt(best.net,U,true)}</span>
+      <span class="tag ${worst.net<0?'loss':''}">Zwakste: <b>${lab(worst)}</b> ${btFmt(worst.net,U,true)}</span>
+      <span class="tag">Gemiddeld per maand <b>${btFmt(avg,U,true)}</b></span></div>` : ''}
+    ${td.undated ? `<div class="bt-note">${td.undated} trade${td.undated===1?' heeft':'s hebben'} geen datum en staan niet op de tijdlijn.</div>` : ''}`;
+  btDrawTime();
+}
+function btDrawTime(){
+  const cv = document.getElementById('btCmpTime'); if(!cv || !btTimeCtx || typeof Chart==='undefined') return;
+  if(charts.btCmpTime){ charts.btCmpTime.destroy(); delete charts.btCmpTime; }
+  const { U, td, months } = btTimeCtx, DAY = 864e5;
+  const common = { animation:false, responsive:true, maintainAspectRatio:false };
+  const yScale = { suggestedMin:0, suggestedMax:0, grace:'6%', grid:{ color:c=> c.tick && c.tick.value===0 ? TH.zero : TH.grid }, ticks:{ color:TH.tick, font:{ size:10 }, callback:v=>btFmtAxis(v,U) } };
+  if(btTimeMode==='month'){
+    charts.btCmpTime = new Chart(cv, {
+      type:'bar',
+      data:{ labels:months.map(r=>BT_MON_NL[r.m]+" ’"+String(r.y).slice(2)), datasets:[{ data:months.map(r=>Math.round(r.net*1e3)/1e3), backgroundColor:months.map(r=>r.net>0?TH.pos:r.net<0?TH.neg:TH.be), borderRadius:4, barPercentage:0.8, categoryPercentage:0.9 }] },
+      options:{ ...common, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c=>btFmt(c.parsed.y,U,true), afterLabel:c=>{ const r = months[c.dataIndex]; return r.n ? r.n+' trades · '+(r.w+r.l ? Math.round(r.w/(r.w+r.l)*100)+'% winrate' : 'geen win/loss') : 'geen trades'; } } } },
+        scales:{ x:{ grid:{ display:false }, ticks:{ color:TH.tick2, font:{ size:10 }, maxRotation:0, autoSkip:true, maxTicksLimit:14 } }, y:yScale } },
+    });
+    return;
+  }
+  // cumulative: one point per trading day
+  const t = td.trades, day0 = Math.floor(t[0].ts/DAY)*DAY, day1 = Math.floor(t[t.length-1].ts/DAY)*DAY;
+  const pts = [{ x:day0 - DAY, y:0 }]; let cum = 0, cur = null;
+  t.forEach(x=>{ const d = Math.floor(x.ts/DAY)*DAY; if(cur!==null && d!==cur) pts.push({ x:cur, y:Math.round(cum*1e3)/1e3 }); cum += x.v; cur = d; });
+  pts.push({ x:cur, y:Math.round(cum*1e3)/1e3 });
+  const x0 = day0 - DAY, x1 = Math.max(day1, x0 + 7*DAY), ticks = btTimeTicks(x0, x1);
+  const fmtD = v=>{ const d = new Date(v); return d.getUTCDate()+' '+BT_MON_NL[d.getUTCMonth()]+' '+d.getUTCFullYear(); };
+  charts.btCmpTime = new Chart(cv, {
+    type:'line',
+    data:{ datasets:[{ label:'Totaal', data:pts, parsing:false, borderColor:TH.accent, borderWidth:2, pointRadius:0, tension:0, fill:'origin', backgroundColor:TH.a('accent',0.08) }] },
+    options:{ ...common, parsing:false, normalized:true, interaction:{ mode:'nearest', axis:'x', intersect:false },
+      plugins:{ legend:{ display:false }, decimation:{ enabled:true, algorithm:'lttb', samples:600 },
+        tooltip:{ callbacks:{ title:i=>fmtD(i[0].parsed.x), label:c=>'Totaal: '+btFmt(c.parsed.y,U,true) } } },
+      scales:{ x:{ type:'linear', min:x0, max:x1, grid:{ color:TH.grid, drawTicks:false }, ticks:{ color:TH.tick2, font:{ size:10 }, maxRotation:0, callback:v=>{ const k = ticks.find(z=>z.v===v); return k ? k.l : ''; } },
+                 afterBuildTicks:ax=>{ ax.ticks = ticks.map(z=>({ value:z.v })); } }, y:yScale } },
+  });
+}
 function btRenderOverview(el){
   const sessions = btSortedSessions();
   btCurrent = null;
@@ -6895,7 +6999,9 @@ function btRenderOverview(el){
   } else if(withData.length){
     hero = `<div class="be-warn" style="margin-bottom:18px;">Je sessies gebruiken verschillende eenheden (${units.map(u=>BT_UNIT_LONG[u]).join(', ')}), dus ze kunnen niet bij elkaar opgeteld worden. Hieronder zie je ze wel naast elkaar.</div>`;
   }
-  el.innerHTML = btViewBar(null) + hero + `<div class="section-head"><h3>Sessies vergeleken</h3><div class="rule"></div></div>
+  const timeData = withData.length && sameUnit ? btTimeData(withData) : null;
+  const timePanel = timeData && timeData.trades.length ? `<div class="panel" id="btTimePanel" style="margin-bottom:6px;"></div>` : '';
+  el.innerHTML = btViewBar(null) + hero + timePanel + `<div class="section-head"><h3>Sessies vergeleken</h3><div class="rule"></div></div>
     <div class="panel"><div class="vault-scroll"><table class="bt-session-cmp bt-bartable"><thead><tr><th>Sessie</th><th>Trades</th><th>Winrate</th><th>PF</th><th>Verwachting</th><th>Netto</th><th>Max DD</th><th>BE</th></tr></thead><tbody>
     ${rows.map(({s,S,color})=>`<tr onclick="btSelect('${s.id}')">
       <td><span class="bt-dot" style="background:${color};"></span>${escHtml(s.name)}</td>
@@ -6905,7 +7011,17 @@ function btRenderOverview(el){
       <td>${S.n&&S.maxDD>0?btFmt(-S.maxDD,s.unit):'—'}</td><td>${S.b}</td></tr>`).join('')}
     </tbody></table></div></div>` +
     (withData.length ? `<div class="grid-2 wide-left"><div class="panel"><h2>Equity per sessie</h2><div class="desc">Alle sessies op dezelfde schaal, trade na trade. Zo zie je welk jaar of welke run het sterkst was.</div><div style="height:280px;"><canvas id="btCmpEq" role="img" aria-label="Equity-curves per sessie"></canvas></div></div>
-      <div class="panel"><h2>Netto per sessie</h2><div class="desc">Wie won, wie verloor.</div><div style="height:280px;"><canvas id="btCmpNet" role="img" aria-label="Netto resultaat per sessie"></canvas></div></div></div>` : '');
+      <div class="panel"><h2>Netto per sessie</h2><div class="desc">Wie won, wie verloor.</div><div style="height:280px;"><canvas id="btCmpNet" role="img" aria-label="Netto resultaat per sessie"></canvas></div></div></div>` : '') +
+    (withData.length && sameUnit ? `<div class="panel" id="btMcAllPanel" style="margin-top:16px;"></div>` : '');
+  if(timePanel) btRenderTimePanel(document.getElementById('btTimePanel'), U, timeData);
+  if(withData.length && sameUnit){
+    const vals = withData.flatMap(r=>r.S.vals);
+    const key = withData.map(r=>[r.s.id, r.S.n, r.S.net.toFixed(6)].join(':')).join('|') + '|' + U;
+    if(btMcAllCache.key !== key) btMcAllCache = { key, mc: btMonteCarlo(vals) };
+    btMcRender(document.getElementById('btMcAllPanel'), U, btMcAllCache.mc, 'btMCall', 'btMCall',
+      `Het systeem trekt ${vals.length} trades uit al je sessies samen, ${btMcAllCache.mc ? btMcAllCache.mc.sims : 1000} keer, willekeurig uit je eigen resultaten. Zo zie je hoe al je backtests samen konden lopen met meer of minder geluk.`,
+      'Monte Carlo — alle sessies');
+  }
   if(typeof Chart==='undefined' || !withData.length) return;
   const plotRows = withData.filter(r=>r.s.unit===U);
   charts.btCmpEq = new Chart(document.getElementById('btCmpEq'), {
@@ -7437,6 +7553,7 @@ window.btTradesMore = btTradesMore;
 window.btSetTradeFilter = btSetTradeFilter;
 window.btSetBreak = btSetBreak;
 window.btSetEq = btSetEq;
+window.btSetTimeMode = btSetTimeMode;
 window.btSimInput = btSimInput;
 window.btSetCompound = btSetCompound;
 window.btOpenDrop = btOpenDrop;
